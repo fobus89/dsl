@@ -55,16 +55,30 @@ func parseSelect(p parser.Parser) (ast.Expr, error) {
 		}
 	}
 
-	if !p.MatchNext(token.WHERE) {
-		return NewSelectExpr(fields, expr, nil), nil
-	}
+	var (
+		where ast.Expr
+		limit ast.Expr
+	)
 
-	where, err := p.ParseStmt()
-	{
-		if err != nil {
-			return nil, err
+	if p.MatchNext(token.WHERE) {
+		_where, err := p.ParseStmt()
+		{
+			if err != nil {
+				return nil, err
+			}
 		}
+		where = _where
 	}
 
-	return NewSelectExpr(fields, expr, where), nil
+	if p.MatchNext(token.LIMIT) {
+		_limit, err := p.ParseStmt()
+		{
+			if err != nil {
+				return nil, err
+			}
+		}
+		limit = _limit
+	}
+
+	return NewSelectExpr(fields, expr, where, limit), nil
 }

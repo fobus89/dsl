@@ -15,6 +15,9 @@ func RegisterParser(p parser.Parser) {
 	p.NudRegister(token.TRUE, nudBoolLiteral)
 	p.NudRegister(token.STRING_LITERAL, nudStringLiteral)
 	p.NudRegister(token.IDENT, nudIdentLiteral)
+
+	p.NudRegister(token.STRING_FORMAT, nudStringFormatLiteral)
+	// p.LedRegister(token.STRING_FORMAT, parser.Logical, nudStringFormatLiteral)
 }
 
 func nudIntLiteral(p parser.Parser) (ast.Expr, error) {
@@ -64,4 +67,22 @@ func nudStringLiteral(p parser.Parser) (ast.Expr, error) {
 func nudIdentLiteral(p parser.Parser) (ast.Expr, error) {
 	literal := p.Next()
 	return NewIdentExpr(literal.Literal), nil
+}
+
+func nudStringFormatLiteral(p parser.Parser) (ast.Expr, error) {
+	p.Next() // skip string format
+
+	var exprs []ast.Expr
+
+	for !p.MatchNext(token.STRING_FORMAT) {
+		expr, err := p.ParseExpr(parser.Lowest)
+		{
+			if err != nil {
+				return nil, err
+			}
+		}
+		exprs = append(exprs, expr)
+	}
+
+	return NewFormatStringExpr(exprs), nil
 }

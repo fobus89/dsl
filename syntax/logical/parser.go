@@ -25,6 +25,9 @@ func RegisterParser(p parser.Parser) {
 	p.LedRegister(token.AMP_AMP, parser.Logical, ledBinary)
 	p.LedRegister(token.PIPE_PIPE, parser.Logical, ledBinary)
 
+	p.LedRegister(token.AND, parser.Logical, ledBinary)
+	p.LedRegister(token.OR, parser.Logical, ledBinary)
+
 	// > < != == <= >=
 	p.LedRegister(token.GT, parser.Relational, ledBinary)
 	p.LedRegister(token.LT, parser.Relational, ledBinary)

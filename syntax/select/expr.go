@@ -18,12 +18,13 @@ type SelectExpr struct {
 	limit  ast.Expr
 }
 
-func NewSelectExpr(fields []Ident, source ast.Expr, where ast.Expr) *SelectExpr {
+func NewSelectExpr(fields []Ident, source ast.Expr, where, limit ast.Expr) *SelectExpr {
 
 	return &SelectExpr{
 		fields: fields,
 		source: source,
 		where:  where,
+		limit:  limit,
 	}
 }
 
@@ -39,7 +40,7 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	switch o := obj.Any().(type) {
 
 	case []int:
-		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where, s.limit)
 		{
 			if err != nil {
 				return value.NewTypeNil(), err
@@ -53,7 +54,7 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		return value.NewType(outChild), nil
 
 	case []string:
-		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where, s.limit)
 		{
 			if err != nil {
 				return value.NewTypeNil(), err
@@ -67,7 +68,7 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		return value.NewType(outChild), nil
 
 	case []int64:
-		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where, s.limit)
 		{
 			if err != nil {
 				return value.NewTypeNil(), err
@@ -81,7 +82,7 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		return value.NewType(outChild), nil
 
 	case []float64:
-		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where, s.limit)
 		{
 			if err != nil {
 				return value.NewTypeNil(), err
@@ -111,7 +112,26 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	case []any:
 		out := []map[string]any{}
 
+		var _limit = -1
+
+		if s.limit != nil {
+			v, err := s.limit.Eval(ctx)
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+
+			if !v.IsNumber() {
+				return value.NewTypeNil(), fmt.Errorf("limit invalid type %s", v.Typeof())
+			}
+
+			_limit = v.UnsafeCastInt()
+		}
+
 		for _, row := range o {
+
+			if _limit != -1 && len(out) >= _limit {
+				break
+			}
 
 			tmp, ok := row.(map[string]any)
 			{
@@ -188,7 +208,23 @@ func projectPrimitiveRow[T any](
 	ctx ast.Ctx,
 	rows []T,
 	where ast.Expr,
+	limit ast.Expr,
 ) ([]T, bool, error) {
+
+	var _limit = -1
+
+	if limit != nil {
+		v, err := limit.Eval(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if !v.IsNumber() {
+			return nil, false, fmt.Errorf("limit invalid type %s", v.Typeof())
+		}
+
+		_limit = v.UnsafeCastInt()
+	}
 
 	localCtx := ctx.GetLocalCtx()
 
@@ -209,6 +245,10 @@ func projectPrimitiveRow[T any](
 			if !cond.UnsafeCastBool() {
 				continue
 			}
+		}
+
+		if _limit != -1 && len(out) >= _limit {
+			break
 		}
 
 		out = append(out, row)

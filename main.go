@@ -26,12 +26,15 @@ func main() {
 	// return
 
 	p := parser.NewParser(`
-		users = select 
-			el
-		from testarray 
-		where value > 2
+		user = select
+			id,username,name
+		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
-		users
+		posts = select
+			id,title,body
+		from json(get("https://jsonplaceholder.typicode.com/posts?userId={user.id}"))
+
+		stringify(posts)
 	`)
 
 	p.SetValue("testarray", value.NewType([]int{1, 2, 3, 4, 5, 6, 7}))
@@ -101,6 +104,21 @@ func main() {
 		}
 
 		return value.NewType(minVal), nil
+	})
+
+	p.SetFunc("stringify", func(vals ...value.Type) (value.Type, error) {
+		if len(vals) != 1 {
+			return value.NewTypeNil(), fmt.Errorf("get() expects exactly 1 argument, got %d", len(vals))
+		}
+
+		data, err := json.MarshalIndent(vals[0].Any(), "", " ")
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+		}
+
+		return value.NewType(string(data)), nil
 	})
 
 	literal_parser.RegisterParser(p)

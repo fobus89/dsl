@@ -73,10 +73,10 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 			r := rightVal.UnsafeCastBool()
 			switch b.Op {
 
-			case token.AMP_AMP:
+			case token.AMP_AMP, token.AND:
 				return value.NewType(l && r), nil
 
-			case token.PIPE_PIPE:
+			case token.PIPE_PIPE, token.OR:
 				return value.NewType(l || r), nil
 			}
 		}

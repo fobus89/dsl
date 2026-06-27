@@ -60,8 +60,8 @@ const (
 	PERCENT_EQ // %=
 	assignment_end
 
-	AMP  // & | and
-	PIPE // | | or
+	AMP  // & |
+	PIPE // | |
 
 	// Logical operators
 	logical_start
@@ -93,6 +93,8 @@ const (
 
 	// Keywords
 	keyword_start
+	AND       // &&
+	OR        // ||
 	FALSE     // false
 	TRUE      // true
 	AS        // as

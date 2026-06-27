@@ -166,6 +166,10 @@ func (t TokenType) String() string {
 		return "export"
 	case FALSE:
 		return "false"
+	case AND:
+		return "and"
+	case OR:
+		return "or"
 	case FINALLY:
 		return "finally"
 	case FN:

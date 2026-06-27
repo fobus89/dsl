@@ -2,6 +2,7 @@ package literal_parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/value"
@@ -83,4 +84,36 @@ func (i Ident) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (Ident) Type(ctx ast.Ctx) string {
 	return "ident"
+}
+
+type FormatStringExpr struct {
+	parts []ast.Expr
+}
+
+func NewFormatStringExpr(parts []ast.Expr) *FormatStringExpr {
+	return &FormatStringExpr{
+		parts: parts,
+	}
+}
+
+func (f *FormatStringExpr) Eval(ctx ast.Ctx) (value.Type, error) {
+
+	var builder strings.Builder
+
+	for _, part := range f.parts {
+		v, err := part.Eval(ctx)
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+		}
+
+		builder.WriteString(v.UnsafeCastString())
+	}
+
+	return value.NewType(builder.String()), nil
+}
+
+func (FormatStringExpr) Type(ctx ast.Ctx) string {
+	return "formatString"
 }

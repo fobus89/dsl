@@ -18,10 +18,12 @@ type SelectExpr struct {
 	limit  ast.Expr
 }
 
-func NewSelectExpr(fields []Ident, source ast.Expr) *SelectExpr {
+func NewSelectExpr(fields []Ident, source ast.Expr, where ast.Expr) *SelectExpr {
+
 	return &SelectExpr{
 		fields: fields,
 		source: source,
+		where:  where,
 	}
 }
 
@@ -35,40 +37,101 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	}
 
 	switch o := obj.Any().(type) {
-	case map[string]any:
-		out := map[string]any{}
 
-		for _, v := range s.fields {
-
-			objValue, ok := o[string(v)]
-			{
-				if !ok {
-					return value.NewTypeNil(), fmt.Errorf("property %q not found", v)
-				}
+	case []int:
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
 			}
-
-			out[string(v)] = objValue
 		}
 
-		return value.NewType(out), nil
+		if !ok {
+			return value.NewTypeNil(), nil
+		}
+
+		return value.NewType(outChild), nil
+
+	case []string:
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+		}
+
+		if !ok {
+			return value.NewTypeNil(), nil
+		}
+
+		return value.NewType(outChild), nil
+
+	case []int64:
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+		}
+
+		if !ok {
+			return value.NewTypeNil(), nil
+		}
+
+		return value.NewType(outChild), nil
+
+	case []float64:
+		outChild, ok, err := projectPrimitiveRow(ctx, o, s.where)
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+		}
+
+		if !ok {
+			return value.NewTypeNil(), nil
+		}
+
+		return value.NewType(outChild), nil
+
+	case map[string]any:
+		outChild, ok, err := s.projectRow(ctx, o)
+		{
+			if err != nil {
+				return value.NewTypeNil(), err
+			}
+		}
+
+		if !ok {
+			return value.NewTypeNil(), nil
+		}
+
+		return value.NewType(outChild), nil
+
 	case []any:
 		out := []map[string]any{}
 
-		for _, v := range o {
-			tmp := v.(map[string]any)
-			outChild := map[string]any{}
+		for _, row := range o {
 
-			for _, v := range s.fields {
-				objValue, ok := tmp[string(v)]
-				{
-					if !ok {
-						return value.NewTypeNil(), fmt.Errorf("property %q not found", v)
-					}
+			tmp, ok := row.(map[string]any)
+			{
+				if !ok {
+					return value.NewTypeNil(), fmt.Errorf(
+						"select: expected map[string]any, got %T",
+						row,
+					)
 				}
-				outChild[string(v)] = objValue
 			}
 
-			out = append(out, outChild)
+			outChild, ok, err := s.projectRow(ctx, tmp)
+			{
+				if err != nil {
+					return value.NewTypeNil(), err
+				}
+			}
+			if ok {
+				out = append(out, outChild)
+			}
 		}
 
 		return value.NewType(out), nil
@@ -81,4 +144,75 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (s *SelectExpr) Type(ctx ast.Ctx) string {
 	return ""
+}
+
+func (s *SelectExpr) projectRow(
+	ctx ast.Ctx,
+	row map[string]any,
+) (map[string]any, bool, error) {
+
+	if s.where != nil {
+		localCtx := ctx.GetLocalCtx()
+
+		for k, v := range row {
+			localCtx.SetValue(k, value.NewType(v))
+		}
+
+		cond, err := s.where.Eval(localCtx)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if !cond.UnsafeCastBool() {
+			return nil, false, nil
+		}
+	}
+
+	out := make(map[string]any, len(s.fields))
+
+	for _, field := range s.fields {
+
+		val, ok := row[string(field)]
+		if !ok {
+			return nil, false,
+				fmt.Errorf("property %q not found", field)
+		}
+
+		out[string(field)] = val
+	}
+
+	return out, true, nil
+}
+
+func projectPrimitiveRow[T any](
+	ctx ast.Ctx,
+	rows []T,
+	where ast.Expr,
+) ([]T, bool, error) {
+
+	localCtx := ctx.GetLocalCtx()
+
+	var out []T
+
+	for _, row := range rows {
+		localCtx.SetValue("value", value.NewType(row))
+
+		if where != nil {
+
+			cond, err := where.Eval(localCtx)
+			{
+				if err != nil {
+					return nil, false, err
+				}
+			}
+
+			if !cond.UnsafeCastBool() {
+				continue
+			}
+		}
+
+		out = append(out, row)
+	}
+
+	return out, true, nil
 }

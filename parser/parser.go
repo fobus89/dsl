@@ -42,11 +42,7 @@ type Parser interface {
 	Nud(kind token.TokenType) NudHandlerType
 	Led(kind token.TokenType) LedHandlerType
 
-	//ctx
-	SetValue(key string, val value.Type)
-	GetValue(key string) (value.Type, bool)
-	SetFunc(key string, val functype)
-	GetFunc(key string) (functype, bool)
+	Ctx() ast.Ctx
 }
 
 var _ Parser = (*parser)(nil)
@@ -59,6 +55,10 @@ type parser struct {
 	bpLookup   BpLookupType
 	ctx        *scope
 	pos        int
+}
+
+func (p *parser) Ctx() ast.Ctx {
+	return p.ctx
 }
 
 func (p *parser) GetFunc(key string) (functype, bool) {

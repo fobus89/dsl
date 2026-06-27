@@ -20,15 +20,21 @@ import (
 )
 
 func main() {
-	p := parser.NewParser(`
-		users = select id,name from json(get("https://jsonplaceholder.typicode.com/users/"))
 
-		10+1 < 2
-		1 > 2
-		1 >= 2
-		1 <= 2
-		1 != 2
+	// fmt.Println(value.NewType(nil).Typeof())
+
+	// return
+
+	p := parser.NewParser(`
+		users = select 
+			el
+		from testarray 
+		where value > 2
+
+		users
 	`)
+
+	p.SetValue("testarray", value.NewType([]int{1, 2, 3, 4, 5, 6, 7}))
 
 	p.SetFunc("get", func(vals ...value.Type) (value.Type, error) {
 
@@ -113,7 +119,7 @@ func main() {
 	}
 
 	for _, expr := range exprs {
-		v, err := expr.Eval(p)
+		v, err := expr.Eval(p.Ctx())
 		{
 			if err != nil {
 				fmt.Println(err)

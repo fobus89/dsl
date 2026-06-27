@@ -1,6 +1,9 @@
 package parser
 
-import "github.com/fobus89/dsl/value"
+import (
+	"github.com/fobus89/dsl/ast"
+	"github.com/fobus89/dsl/value"
+)
 
 type MapType[T comparable, E any] map[T]E
 
@@ -73,4 +76,8 @@ func (s *scope) GetFunc(key string) (functype, bool) {
 	}
 
 	return nil, false
+}
+
+func (s *scope) GetLocalCtx() ast.Ctx {
+	return NewCtxWithParent(s)
 }

@@ -143,7 +143,11 @@ func (t Type) Typeof() string {
 		return "[]bool"
 	case []any:
 		return "[]any"
+	case map[string]any:
+		return "map[string]any"
+	case []map[string]any:
+		return "[]map[string]any"
 	}
 
-	return ""
+	return "unknow"
 }

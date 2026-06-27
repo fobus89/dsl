@@ -9,6 +9,7 @@ type Ctx interface {
 	GetValue(key string) (value.Type, bool)
 	SetFunc(key string, val functype)
 	GetFunc(key string) (functype, bool)
+	GetLocalCtx() Ctx
 }
 
 type Expr interface {

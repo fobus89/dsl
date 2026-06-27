@@ -41,7 +41,6 @@ var symbolMap = func() MapType[string, TokenType] {
 		if slices.Contains(markers, i) {
 			continue
 		}
-
 		m[i.String()] = i
 	}
 

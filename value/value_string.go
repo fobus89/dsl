@@ -3,15 +3,15 @@ package value
 import "strconv"
 
 func (t Type) IsString() bool {
-	return Is[string](t.Value)
+	return Is[string](t.value)
 }
 
 func (t Type) ToString() (string, bool) {
-	return To[string](t.Value)
+	return To[string](t.value)
 }
 
 func (t Type) CastString() (string, bool) {
-	switch v := t.Value.(type) {
+	switch v := t.value.(type) {
 	case string:
 		return v, true
 
@@ -41,7 +41,14 @@ func (t Type) CastString() (string, bool) {
 		return strconv.FormatFloat(float64(v), 'f', -1, 32), true
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
 	}
 
 	return "", false
+}
+
+func (t Type) UnsafeCastString() string {
+	v, _ := t.CastString()
+	return v
 }

@@ -2,7 +2,16 @@ package ast
 
 import "github.com/fobus89/dsl/value"
 
+type functype = func(...value.Type) (value.Type, error)
+
+type Ctx interface {
+	SetValue(key string, val value.Type)
+	GetValue(key string) (value.Type, bool)
+	SetFunc(key string, val functype)
+	GetFunc(key string) (functype, bool)
+}
+
 type Expr interface {
-	Eval() (value.Type, error)
-	Type() string
+	Eval(Ctx) (value.Type, error)
+	Type(Ctx) string
 }

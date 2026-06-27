@@ -56,7 +56,7 @@ func Cast[T Number](v any) (T, bool) {
 }
 
 type Type struct {
-	Value any
+	value any
 }
 
 func NewTypeNil() Type {
@@ -65,22 +65,26 @@ func NewTypeNil() Type {
 
 func NewType(v any) Type {
 	return Type{
-		Value: v,
+		value: v,
 	}
 }
 
 func NewTypeWithExplicit(v any, explicitType string) Type {
 	return Type{
-		Value: v,
+		value: v,
 	}
 }
 
 func (t Type) Any() any {
-	return t.Value
+	return t.value
+}
+
+func (t Type) IsNil() bool {
+	return t.value == nil
 }
 
 func (t Type) Typeof() string {
-	switch t.Value.(type) {
+	switch t.value.(type) {
 	case uint8:
 		return "uint8"
 	case uint16:
@@ -143,16 +147,3 @@ func (t Type) Typeof() string {
 
 	return ""
 }
-
-// type Type interface{}
-//
-// type IntType struct{}
-//
-// type ArrayType struct {
-//     Size int
-//     Elem Type
-// }
-//
-// type SliceType struct {
-//     Elem Type
-// }

@@ -6,6 +6,7 @@ import (
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/lexer"
 	"github.com/fobus89/dsl/token"
+	"github.com/fobus89/dsl/value"
 )
 
 type (
@@ -29,7 +30,6 @@ type Parser interface {
 	Match(tok token.TokenType) bool
 	MatchNext(tok token.TokenType) bool
 	MatchNextN(tok token.TokenType, n int) bool
-
 	NudRegister(kind token.TokenType, nudHander NudHandlerType)
 	LedRegister(kind token.TokenType, bp BindingPower, ledHander LedHandlerType)
 	StmtRegister(kind token.TokenType, stmtHander StmtHandlerType)
@@ -41,6 +41,12 @@ type Parser interface {
 	Bp(kind token.TokenType) BindingPower
 	Nud(kind token.TokenType) NudHandlerType
 	Led(kind token.TokenType) LedHandlerType
+
+	//ctx
+	SetValue(key string, val value.Type)
+	GetValue(key string) (value.Type, bool)
+	SetFunc(key string, val functype)
+	GetFunc(key string) (functype, bool)
 }
 
 var _ Parser = (*parser)(nil)
@@ -51,7 +57,24 @@ type parser struct {
 	nudLookup  NudLookupType
 	ledLookup  LedLookupType
 	bpLookup   BpLookupType
+	ctx        *scope
 	pos        int
+}
+
+func (p *parser) GetFunc(key string) (functype, bool) {
+	return p.ctx.GetFunc(key)
+}
+
+func (p *parser) SetFunc(key string, val functype) {
+	p.ctx.SetFunc(key, val)
+}
+
+func (p *parser) GetValue(key string) (value.Type, bool) {
+	return p.ctx.GetValue(key)
+}
+
+func (p *parser) SetValue(key string, val value.Type) {
+	p.ctx.SetValue(key, val)
 }
 
 func NewParser(s string) *parser {
@@ -62,6 +85,7 @@ func NewParser(s string) *parser {
 		nudLookup:  NudLookupType{},
 		ledLookup:  LedLookupType{},
 		bpLookup:   BpLookupType{},
+		ctx:        NewCtx(),
 		pos:        0,
 	}
 }

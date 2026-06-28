@@ -517,7 +517,7 @@ struct Node {
 	next: Node
 }
 
-fn create_node(val: Int) -> Node {
+fn create_node(val: Int) Node {
 	return Node { value: val, next: nil }
 }
 
@@ -566,7 +566,6 @@ fn print_list(head: Node) {
 		token.NewToken(token.COLON, ":"),
 		token.NewToken(token.IDENT, "Int"),
 		token.NewToken(token.RPARENT, ")"),
-		token.NewToken(token.MINUS_GT, "->"),
 		token.NewToken(token.IDENT, "Node"),
 		token.NewToken(token.LBRACE, "{"),
 		// return Node { value: val, next: nil }

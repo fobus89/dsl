@@ -67,20 +67,6 @@ func (t TokenType) String() string {
 	case MINUS_MINUS:
 		return "--"
 
-	// Bitwise operators
-	case AMP:
-		return "&"
-	case PIPE:
-		return "|"
-	case CARET:
-		return "^"
-	case TILDE:
-		return "~"
-	case LT_LT:
-		return "<<"
-	case GT_GT:
-		return ">>"
-
 	// Comparison operators
 	case EQ_EQ:
 		return "=="
@@ -108,14 +94,6 @@ func (t TokenType) String() string {
 		return "/="
 	case PERCENT_EQ:
 		return "%="
-	case AMP_EQ:
-		return "&="
-	case PIPE_EQ:
-		return "|="
-	case LT_LT_EQ:
-		return "<<="
-	case GT_GT_EQ:
-		return ">>="
 
 	// Logical operators
 	case BANG:
@@ -124,20 +102,10 @@ func (t TokenType) String() string {
 		return "&&"
 	case PIPE_PIPE:
 		return "||"
-
-	// Other operators
-	case EQ_GT:
-		return "=>"
-	case MINUS_GT:
-		return "->"
-	case LT_MINUS:
-		return "<-"
-	case DOT_DOT:
-		return ".."
-	case DOT_DOT_EQ:
-		return "..="
-	case DOT_DOT_DOT:
-		return "..."
+	case AMP:
+		return "&"
+	case PIPE:
+		return "|"
 
 	// Punctuation
 	case QUESTION:
@@ -198,6 +166,10 @@ func (t TokenType) String() string {
 		return "export"
 	case FALSE:
 		return "false"
+	case AND:
+		return "and"
+	case OR:
+		return "or"
 	case FINALLY:
 		return "finally"
 	case FN:

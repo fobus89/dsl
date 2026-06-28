@@ -17,7 +17,7 @@ const (
 	literal_start
 	STRING_LITERAL // "string"
 	STRING_FORMAT  // "{expr}"
-	NUMBER_LITERAL // int | float
+	NUMBER_LITERAL // int64 | float64
 	FLOAT_LITERAL  // 0.0-9.0
 	INT_LITERAL    // 0-9
 	literal_end
@@ -40,16 +40,6 @@ const (
 	MINUS_MINUS // --
 	arithmetic_end
 
-	// Bitwise operators
-	bitwise_start
-	AMP   // &
-	PIPE  // |
-	CARET // ^
-	TILDE // ~
-	LT_LT // <<
-	GT_GT // >>
-	bitwise_end
-
 	// Comparison operators
 	comparison_start
 	EQ_EQ   // ==
@@ -68,11 +58,10 @@ const (
 	STAR_EQ    // *=
 	SLASH_EQ   // /=
 	PERCENT_EQ // %=
-	AMP_EQ     // &=
-	PIPE_EQ    // |=
-	LT_LT_EQ   // <<=
-	GT_GT_EQ   // >>=
 	assignment_end
+
+	AMP  // & |
+	PIPE // | |
 
 	// Logical operators
 	logical_start
@@ -80,16 +69,6 @@ const (
 	AMP_AMP   // && | and
 	PIPE_PIPE // || | or
 	logical_end
-
-	// Other operators
-	operator_start
-	EQ_GT       // =>
-	MINUS_GT    // ->
-	LT_MINUS    // <-
-	DOT_DOT     // ..
-	DOT_DOT_EQ  // ..=
-	DOT_DOT_DOT // ...
-	operator_end
 
 	// Punctuation
 	punctuation_start
@@ -114,6 +93,10 @@ const (
 
 	// Keywords
 	keyword_start
+	AND       // &&
+	OR        // ||
+	FALSE     // false
+	TRUE      // true
 	AS        // as
 	ASYNC     // async
 	AWAIT     // await
@@ -126,7 +109,6 @@ const (
 	ELSE      // else
 	ENUM      // enum
 	EXPORT    // export
-	FALSE     // false
 	FINALLY   // finally
 	FN        // fn
 	FOR       // for
@@ -147,10 +129,10 @@ const (
 	RETURN    // return
 	SELF      // self
 	SPAWN     // spawn
+
 	// STRUCT    // struct
 	SUPER  // super
 	THROW  // throw
-	TRUE   // true
 	TRY    // try
 	TYPE   // type
 	TYPEOF // typeof
@@ -244,11 +226,9 @@ var markers = []TokenType{
 	literal_start, literal_end,
 	symbol_start, symbol_end,
 	arithmetic_start, arithmetic_end,
-	bitwise_start, bitwise_end,
 	comparison_start, comparison_end,
 	assignment_start, assignment_end,
 	logical_start, logical_end,
-	operator_start, operator_end,
 	punctuation_start, punctuation_end,
 	keyword_start, keyword_end,
 	builtin_start, builtin_end,
@@ -274,10 +254,6 @@ func (t TokenType) IsSymbol() bool {
 	return symbol_start < t && t < symbol_end && !slices.Contains(markers, t)
 }
 
-func (t TokenType) IsBitwise() bool {
-	return bitwise_start < t && t < bitwise_end
-}
-
 func (t TokenType) IsArithmetic() bool {
 	return arithmetic_start < t && t < arithmetic_end
 }
@@ -292,10 +268,6 @@ func (t TokenType) IsAssignment() bool {
 
 func (t TokenType) IsLogical() bool {
 	return logical_start < t && t < logical_end
-}
-
-func (t TokenType) IsOperator() bool {
-	return operator_start < t && t < operator_end
 }
 
 func (t TokenType) IsPunctuation() bool {

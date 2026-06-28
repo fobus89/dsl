@@ -2,6 +2,10 @@
 // for the foo_lang interpreter.
 package value
 
+import (
+	"reflect"
+)
+
 type Number interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 |
 		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
@@ -79,8 +83,123 @@ func (t Type) Any() any {
 	return t.value
 }
 
+func (t Type) Map() (map[string]any, bool) {
+	m, ok := t.value.(map[string]any)
+
+	return m, ok
+}
+
+func (t Type) MapSlice() ([]map[string]any, bool) {
+	m, ok := t.value.([]map[string]any)
+
+	return m, ok
+}
+
 func (t Type) IsNil() bool {
 	return t.value == nil
+}
+
+func (t Type) IsMap() bool {
+	_, ok := t.value.(map[string]any)
+
+	return ok
+}
+
+func (t Type) IsMapSlice() bool {
+	ty := reflect.TypeOf(t.value)
+	if ty == nil || ty.Kind() != reflect.Slice {
+		return false
+	}
+
+	elem := ty.Elem()
+	if elem.Kind() != reflect.Map {
+		return false
+	}
+
+	return elem.Key().Kind() == reflect.String &&
+		elem.Elem().Kind() == reflect.Interface
+}
+
+func (t Type) Len() int {
+	v := reflect.ValueOf(t.value)
+
+	switch v.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
+		return v.Len()
+	default:
+		return 0
+	}
+}
+
+func (t Type) SliceElement() int {
+
+	v := reflect.ValueOf(t.value)
+
+	switch v.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
+		return v.Len()
+	default:
+		return 0
+	}
+}
+
+func (t Type) IsPrimitive() bool {
+	ty := reflect.TypeOf(t.value)
+
+	switch ty.Kind() {
+	case reflect.Bool,
+		reflect.String,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64:
+		return true
+	}
+
+	return false
+}
+
+func (t Type) IsPrimitiveSlice() bool {
+
+	ty := reflect.TypeOf(t.value)
+
+	if ty == nil || ty.Kind() != reflect.Slice {
+		return false
+	}
+
+	switch ty.Elem().Kind() {
+	case reflect.Bool,
+		reflect.String,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64:
+		return true
+	}
+
+	return false
+}
+
+func (t Type) IsSlice() bool {
+	return reflect.TypeOf(t.value).Kind() == reflect.Slice
 }
 
 func (t Type) Typeof() string {

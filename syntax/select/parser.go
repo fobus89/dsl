@@ -17,7 +17,7 @@ func parseSelect(p parser.Parser) (ast.Expr, error) {
 
 	p.Next() // skip SELECT
 
-	var fields []Ident
+	var fields [][2]Ident
 
 	for {
 		tok := p.CurrentToken()
@@ -27,9 +27,19 @@ func parseSelect(p parser.Parser) (ast.Expr, error) {
 			}
 		}
 
-		fields = append(fields, literal_parser.NewIdentExpr(tok.Literal))
+		var asIndet [2]Ident
 
 		p.Next()
+
+		if p.MatchAllNext(token.AS, token.IDENT) {
+			asIndet[1] = literal_parser.NewIdentExpr(p.Peek(-1).Literal)
+		} else {
+			asIndet[1] = literal_parser.NewIdentExpr(tok.Literal)
+		}
+
+		asIndet[0] = literal_parser.NewIdentExpr(tok.Literal)
+
+		fields = append(fields, asIndet)
 
 		if p.CurrentToken().Type != token.COMMA {
 			break

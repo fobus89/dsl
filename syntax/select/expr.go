@@ -12,13 +12,13 @@ import (
 type Ident = literal_parser.Ident
 
 type SelectExpr struct {
-	fields []Ident
+	fields [][2]Ident
 	source ast.Expr
 	where  ast.Expr
 	limit  ast.Expr
 }
 
-func NewSelectExpr(fields []Ident, source ast.Expr, where, limit ast.Expr) *SelectExpr {
+func NewSelectExpr(fields [][2]Ident, source ast.Expr, where, limit ast.Expr) *SelectExpr {
 
 	return &SelectExpr{
 		fields: fields,
@@ -192,13 +192,13 @@ func (s *SelectExpr) projectRow(
 
 	for _, field := range s.fields {
 
-		val, ok := row[string(field)]
+		val, ok := row[string(field[0])]
 		if !ok {
 			return nil, false,
 				fmt.Errorf("property %q not found", field)
 		}
 
-		out[string(field)] = val
+		out[string(field[1])] = val
 	}
 
 	return out, true, nil

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 
 	"github.com/fobus89/dsl/parser"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
@@ -21,23 +22,26 @@ import (
 
 func main() {
 
-	// fmt.Println(value.NewType(nil).Typeof())
-
-	// return
-
 	p := parser.NewParser(`
-		user = select
-			id,username,name
+
+		testarray1 any testarray2
+
+		user1 = select
+			id,name,username
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
-		posts = select
-			id,title,body
-		from json(get("https://jsonplaceholder.typicode.com/posts?userId={user.id}"))
+		user2 = select
+			id
+		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
-		stringify(posts)
+		user1 any user2
 	`)
 
-	p.SetValue("testarray", value.NewType([]int{1, 2, 3, 4, 5, 6, 7}))
+	slice1 := []int{11, 7}
+
+	slices.Reverse(slice1)
+	p.SetValue("testarray1", value.NewType(slice1))
+	p.SetValue("testarray2", value.NewType([]int{4, 2, 3, 7, 5, 6, 1, 22}))
 
 	p.SetFunc("get", func(vals ...value.Type) (value.Type, error) {
 
@@ -145,7 +149,6 @@ func main() {
 				fmt.Println(v.Any())
 			}
 		}
-
 	}
 
 }

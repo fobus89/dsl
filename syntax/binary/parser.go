@@ -18,6 +18,9 @@ func RegisterParser(p parser.Parser) {
 	p.LedRegister(token.STAR, parser.Muptiplicative, ledBinary)
 	p.LedRegister(token.SLASH, parser.Muptiplicative, ledBinary)
 	p.LedRegister(token.PERCENT, parser.Muptiplicative, ledBinary)
+	p.LedRegister(token.IN, parser.Relational, ledBinary)
+	p.LedRegister(token.Any, parser.Relational, ledBinary)
+	p.LedRegister(token.ALL, parser.Relational, ledBinary)
 }
 
 func nudGrouping(p parser.Parser) (ast.Expr, error) {
@@ -40,7 +43,7 @@ func nudGrouping(p parser.Parser) (ast.Expr, error) {
 }
 
 func ledBinary(p parser.Parser, left ast.Expr, bp parser.BindingPower) (ast.Expr, error) {
-	if !p.MatchAny(token.PLUS, token.MINUS, token.STAR, token.SLASH, token.PERCENT) {
+	if !p.MatchAny(token.PLUS, token.MINUS, token.STAR, token.SLASH, token.PERCENT, token.IN, token.Any, token.ALL) {
 		return nil, fmt.Errorf("expected PLUS, MINUS, STAR, SLASH, PERCEN got %v", p.CurrentToken())
 	}
 

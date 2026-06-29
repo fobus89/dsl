@@ -39,7 +39,7 @@ func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	case map[string]any:
 		val, ok := v[string(m.property)]
 		if !ok {
-			return value.NewTypeNil(), nil
+			return value.NewTypeUndefined(), nil
 		}
 
 		return value.NewType(val), nil

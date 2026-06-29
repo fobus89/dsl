@@ -44,8 +44,8 @@ func TestMissingDeepMemberReturnsNil(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !got.IsNil() {
-		t.Fatalf("expected nil, got %#v", got.Any())
+	if !got.IsUndefined() {
+		t.Fatalf("expected undefined, got %#v", got.Any())
 	}
 }
 

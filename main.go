@@ -33,16 +33,22 @@ func main() {
 				id: "a.id"
 			},
 			b:3,
+			username:"Maxime_Nienow",
 			email:"Sincere@april.biz"
 		}
 
 		users = select 
 			*
-		from json(get("https://jsonplaceholder.typicode.com/users/1"))
+		from json(get("https://jsonplaceholder.typicode.com/users/"))
+		where id > -1
 
 	  	out = somevar any users
 		r = 1
-		stringify(out.dsasa != null)
+		stringify(out.asd || r)
+		r
+		q= null || undefined || -0
+		q
+		stringify(users)
 	`)
 
 	slice1 := []int{11, 7}

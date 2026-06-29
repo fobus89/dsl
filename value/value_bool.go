@@ -20,14 +20,18 @@ func (t Type) CastBool() (bool, bool) {
 		return v, ok
 	}
 
+	if t.IsNil() || t.IsUndefined() {
+		return false, true
+	}
+
 	switch {
 	case t.IsNumber():
-		return t.value != 0, true
+		return t.UnsafeCastFloat64() != 0, true
 	case t.IsString():
 		return t.value != "", true
 	}
 
-	return false, false
+	return true, true
 }
 
 // ========== cast float ===================

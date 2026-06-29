@@ -16,6 +16,8 @@ func RegisterParser(p parser.Parser) {
 	p.NudRegister(token.NIL, nudNilLiteral)
 	p.NudRegister(token.NULL, nudNilLiteral)
 	p.NudRegister(token.NAN, nudNanLiteral)
+	p.NudRegister(token.UNDEFINED, nudUndefinedLiteral)
+	p.NudRegister(token.UNDEFIND, nudUndefinedLiteral)
 	p.NudRegister(token.STRING_LITERAL, nudStringLiteral)
 	p.NudRegister(token.IDENT, nudIdentLiteral)
 
@@ -70,6 +72,11 @@ func nudNilLiteral(p parser.Parser) (ast.Expr, error) {
 func nudNanLiteral(p parser.Parser) (ast.Expr, error) {
 	p.Next()
 	return NewNanExpr(), nil
+}
+
+func nudUndefinedLiteral(p parser.Parser) (ast.Expr, error) {
+	p.Next()
+	return NewUndefinedExpr(), nil
 }
 
 func nudStringLiteral(p parser.Parser) (ast.Expr, error) {

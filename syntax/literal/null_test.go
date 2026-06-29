@@ -78,3 +78,21 @@ func TestNanEqualsNan(t *testing.T) {
 		t.Fatalf("expected nan == nan in DSL")
 	}
 }
+
+func TestUndefinedLiteral(t *testing.T) {
+	p := newLiteralTestParser(`undefined == undefind`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !got.UnsafeCastBool() {
+		t.Fatalf("expected undefined aliases to be equal")
+	}
+}

@@ -126,6 +126,8 @@ const (
 	NIL       // nil
 	NULL      // null
 	NAN       // nan
+	UNDEFINED // undefined
+	UNDEFIND  // undefind
 	PUB       // pub
 	REF       // ref
 	RETURN    // return

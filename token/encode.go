@@ -204,6 +204,10 @@ func (t TokenType) String() string {
 		return "null"
 	case NAN:
 		return "nan"
+	case UNDEFINED:
+		return "undefined"
+	case UNDEFIND:
+		return "undefind"
 	case PUB:
 		return "pub"
 	case REF:

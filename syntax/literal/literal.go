@@ -93,6 +93,20 @@ func (Nan) Type(ctx ast.Ctx) string {
 	return "nan"
 }
 
+type Undefined struct{}
+
+func NewUndefinedExpr() Undefined {
+	return Undefined{}
+}
+
+func (Undefined) Eval(ctx ast.Ctx) (value.Type, error) {
+	return value.NewTypeUndefined(), nil
+}
+
+func (Undefined) Type(ctx ast.Ctx) string {
+	return "undefined"
+}
+
 type Ident String
 
 func NewIdentExpr(name string) Ident {

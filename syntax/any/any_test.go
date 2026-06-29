@@ -91,9 +91,9 @@ func TestAnyFindsMapInsideSliceWithJSONNumber(t *testing.T) {
 		t.Fatal("expected r in context")
 	}
 
-	m := got.Any().(map[string]any)
-	if m["name"] != "Leanne Graham" {
-		t.Fatalf("expected first user, got %#v", m)
+	rows := got.Any().([]map[string]any)
+	if len(rows) != 1 || rows[0]["name"] != "Leanne Graham" {
+		t.Fatalf("expected first user array, got %#v", rows)
 	}
 }
 
@@ -123,9 +123,33 @@ func TestAnyFindsMapInsideSliceByOneKeyValue(t *testing.T) {
 		t.Fatal("expected r in context")
 	}
 
+	rows := got.Any().([]map[string]any)
+	if len(rows) != 1 || rows[0]["name"] != "Leanne Graham" {
+		t.Fatalf("expected first user array by id match, got %#v", rows)
+	}
+}
+
+func TestAnyMapRightReturnsMap(t *testing.T) {
+	p := newAnyTestParser(`r = sample any user`)
+	p.Ctx().SetValue("sample", value.NewType(map[string]any{
+		"id": int64(1),
+		"a":  int64(2),
+	}))
+	p.Ctx().SetValue("user", value.NewType(map[string]any{
+		"id":   float64(1),
+		"name": "Leanne Graham",
+	}))
+
+	evalProgram(t, p)
+
+	got, ok := p.Ctx().GetValue("r")
+	if !ok {
+		t.Fatal("expected r in context")
+	}
+
 	m := got.Any().(map[string]any)
 	if m["name"] != "Leanne Graham" {
-		t.Fatalf("expected first user by id match, got %#v", m)
+		t.Fatalf("expected user map, got %#v", m)
 	}
 }
 

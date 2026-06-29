@@ -218,13 +218,19 @@ func sliceAnyVal(slice any, val any) (any, bool) {
 }
 
 func mapAnySlice(left map[string]any, right []map[string]any) (any, bool) {
+	var out []map[string]any
+
 	for _, m := range right {
 		if v, ok := mapAny(left, m); ok {
-			return v, true
+			out = append(out, v.(map[string]any))
 		}
 	}
 
-	return nil, false
+	if len(out) == 0 {
+		return nil, false
+	}
+
+	return out, true
 }
 
 func mapSliceAny(left []map[string]any, right map[string]any) (any, bool) {
@@ -238,15 +244,21 @@ func mapSliceAny(left []map[string]any, right map[string]any) (any, bool) {
 }
 
 func mapSliceAnySlice(left, right []map[string]any) (any, bool) {
+	var out []map[string]any
+
 	for _, l := range left {
 		for _, r := range right {
 			if v, ok := mapAny(l, r); ok {
-				return v, true
+				out = append(out, v.(map[string]any))
 			}
 		}
 	}
 
-	return nil, false
+	if len(out) == 0 {
+		return nil, false
+	}
+
+	return out, true
 }
 
 func sliceAny[T comparable](left, right []T) (any, bool) {

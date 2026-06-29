@@ -232,6 +232,8 @@ func (t Type) Typeof() string {
 		return "string"
 	case bool:
 		return "bool"
+	case Undefined:
+		return "undefined"
 	case []int:
 		return "[]int"
 	case []int8:

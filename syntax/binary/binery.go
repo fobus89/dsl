@@ -35,6 +35,13 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		return value.NewTypeNil(), err
 	}
 
+	switch b.Op {
+	case token.AMP_AMP, token.AND:
+		return value.NewType(leftVal.UnsafeCastBool() && rightVal.UnsafeCastBool()), nil
+	case token.PIPE_PIPE, token.OR:
+		return value.NewType(leftVal.UnsafeCastBool() || rightVal.UnsafeCastBool()), nil
+	}
+
 	if (leftVal.IsNumber() && rightVal.IsNumber()) ||
 		(leftVal.IsBool() || rightVal.IsBool()) {
 
@@ -53,18 +60,6 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 				return value.NewType(l / r), nil
 			case token.PERCENT:
 				return value.NewType(math.Mod(l, r)), nil
-			}
-		}
-
-		{
-			l := leftVal.UnsafeCastBool()
-			r := rightVal.UnsafeCastBool()
-
-			switch b.Op {
-			case token.AMP_AMP, token.AND:
-				return value.NewType(l && r), nil
-			case token.PIPE_PIPE, token.OR:
-				return value.NewType(l || r), nil
 			}
 		}
 

@@ -3,6 +3,7 @@ package select_parser
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/fobus89/dsl/ast"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
@@ -12,14 +13,13 @@ import (
 type Ident = literal_parser.Ident
 
 type SelectExpr struct {
-	fields [][2]Ident
+	fields [][2]ast.Expr
 	source ast.Expr
 	where  ast.Expr
 	limit  ast.Expr
 }
 
-func NewSelectExpr(fields [][2]Ident, source ast.Expr, where, limit ast.Expr) *SelectExpr {
-
+func NewSelectExpr(fields [][2]ast.Expr, source ast.Expr, where, limit ast.Expr) *SelectExpr {
 	return &SelectExpr{
 		fields: fields,
 		source: source,
@@ -29,7 +29,6 @@ func NewSelectExpr(fields [][2]Ident, source ast.Expr, where, limit ast.Expr) *S
 }
 
 func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
-
 	obj, err := s.source.Eval(ctx)
 	{
 		if err != nil {
@@ -112,7 +111,7 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	case []any:
 		out := []map[string]any{}
 
-		var _limit = -1
+		_limit := -1
 
 		if s.limit != nil {
 			v, err := s.limit.Eval(ctx)
@@ -170,14 +169,13 @@ func (s *SelectExpr) projectRow(
 	ctx ast.Ctx,
 	row map[string]any,
 ) (map[string]any, bool, error) {
+	localCtx := ctx.GetLocalCtx()
+
+	for k, v := range row {
+		localCtx.SetValue(k, value.NewType(v))
+	}
 
 	if s.where != nil {
-		localCtx := ctx.GetLocalCtx()
-
-		for k, v := range row {
-			localCtx.SetValue(k, value.NewType(v))
-		}
-
 		cond, err := s.where.Eval(localCtx)
 		if err != nil {
 			return nil, false, err
@@ -191,17 +189,28 @@ func (s *SelectExpr) projectRow(
 	out := make(map[string]any, len(s.fields))
 
 	for _, field := range s.fields {
-
-		val, ok := row[string(field[0])]
-		if !ok {
-			return nil, false,
-				fmt.Errorf("property %q not found", field)
+		val, err := field[0].Eval(localCtx)
+		if err != nil {
+			return nil, false, err
 		}
 
-		out[string(field[1])] = val
+		out[fieldName(ctx, field[1])] = val.Any()
 	}
 
 	return out, true, nil
+}
+
+func fieldName(ctx ast.Ctx, expr ast.Expr) string {
+	if ident, ok := expr.(Ident); ok {
+		return string(ident)
+	}
+
+	if name, ok := expr.(fmt.Stringer); ok {
+		parts := strings.Split(name.String(), ".")
+		return parts[len(parts)-1]
+	}
+
+	return expr.Type(ctx)
 }
 
 func projectPrimitiveRow[T any](
@@ -210,8 +219,7 @@ func projectPrimitiveRow[T any](
 	where ast.Expr,
 	limit ast.Expr,
 ) ([]T, bool, error) {
-
-	var _limit = -1
+	_limit := -1
 
 	if limit != nil {
 		v, err := limit.Eval(ctx)

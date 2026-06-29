@@ -1,6 +1,7 @@
 package select_parser
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/fobus89/dsl/ast"
@@ -14,30 +15,31 @@ func RegisterParser(p parser.Parser) {
 }
 
 func parseSelect(p parser.Parser) (ast.Expr, error) {
-
 	p.Next() // skip SELECT
 
-	var fields [][2]Ident
+	var fields [][2]ast.Expr
 
 	for {
-		tok := p.CurrentToken()
+		expr, err := p.ParseExpr(parser.Lowest)
 		{
-			if tok.Type != token.IDENT {
-				return nil, fmt.Errorf("expected field name")
+			if err != nil {
+				return nil, err
 			}
 		}
 
-		var asIndet [2]Ident
+		var asIndet [2]ast.Expr
 
-		p.Next()
-
-		if p.MatchAllNext(token.AS, token.IDENT) {
-			asIndet[1] = literal_parser.NewIdentExpr(p.Peek(-1).Literal)
-		} else {
-			asIndet[1] = literal_parser.NewIdentExpr(tok.Literal)
+		if p.MatchNext(token.AS) && !p.Match(token.IDENT) {
+			return nil, errors.New("invalid syntax")
 		}
 
-		asIndet[0] = literal_parser.NewIdentExpr(tok.Literal)
+		if p.MatchNext(token.IDENT) {
+			asIndet[1] = literal_parser.NewIdentExpr(p.Peek(-1).Literal)
+		} else {
+			asIndet[1] = expr
+		}
+
+		asIndet[0] = expr
 
 		fields = append(fields, asIndet)
 

@@ -17,15 +17,17 @@ type MemberExpr struct {
 }
 
 func NewMemberExpr(object ast.Expr, filed Ident) *MemberExpr {
-
 	return &MemberExpr{
 		object:   object,
 		property: filed,
 	}
 }
 
-func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
+func (m *MemberExpr) String() string {
+	return fmt.Sprintf("%s.%s", m.object, m.property)
+}
 
+func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	obj, err := m.object.Eval(ctx)
 	{
 		if err != nil {

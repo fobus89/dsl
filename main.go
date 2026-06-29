@@ -21,24 +21,23 @@ import (
 )
 
 func main() {
-
 	p := parser.NewParser(`
 
 		testarray1 any testarray2
 
 		user1 = select
-			id,name,username
+			id,name,username,
+			address.street.zipcode
 		from json(get("https://jsonplaceholder.typicode.com/users/"))
+
+		user1
 
 		user2 = select
 			id as id2,
 			name
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
-		 
 
-	  	user1 any user2
-		w = "world"
-			"hello {w} {1>2} {user2.id2} {user2.name}"
+		stringify(user1)	
 		`)
 
 	slice1 := []int{11, 7}
@@ -48,7 +47,6 @@ func main() {
 	p.SetValue("testarray2", value.NewType([]int{4, 2, 3, 7, 5, 6, 1, 22}))
 
 	p.SetFunc("get", func(vals ...value.Type) (value.Type, error) {
-
 		if len(vals) != 1 {
 			return value.NewTypeNil(), fmt.Errorf("get() expects exactly 1 argument, got %d", len(vals))
 		}
@@ -100,8 +98,7 @@ func main() {
 	})
 
 	p.SetFunc("min", func(vals ...value.Type) (value.Type, error) {
-
-		var minVal = vals[0].UnsafeCastFloat64()
+		minVal := vals[0].UnsafeCastFloat64()
 
 		for _, v := range vals {
 			tmp := v.UnsafeCastFloat64()
@@ -154,5 +151,4 @@ func main() {
 			}
 		}
 	}
-
 }

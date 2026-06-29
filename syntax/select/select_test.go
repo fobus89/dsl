@@ -1,0 +1,173 @@
+package select_parser_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/fobus89/dsl/ast"
+	"github.com/fobus89/dsl/parser"
+	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
+	binary_parser "github.com/fobus89/dsl/syntax/binary"
+	call_parser "github.com/fobus89/dsl/syntax/call"
+	literal_parser "github.com/fobus89/dsl/syntax/literal"
+	logical_parser "github.com/fobus89/dsl/syntax/logical"
+	member_parser "github.com/fobus89/dsl/syntax/member"
+	select_parser "github.com/fobus89/dsl/syntax/select"
+	"github.com/fobus89/dsl/value"
+)
+
+type testParser interface {
+	parser.Parser
+	Parse() ([]ast.Expr, error)
+}
+
+func newSelectTestParser(input string) testParser {
+	p := parser.NewParser(input)
+
+	literal_parser.RegisterParser(p)
+	binary_parser.RegisterParser(p)
+	assignment_parser.RegisterParser(p)
+	call_parser.RegisterParser(p)
+	member_parser.RegisterParser(p)
+	select_parser.RegisterParser(p)
+	logical_parser.RegisterParser(p)
+
+	return p
+}
+
+func TestSelectMemberField(t *testing.T) {
+	p := newSelectTestParser(`
+		select id, address.street from users
+	`)
+
+	p.Ctx().SetValue("users", value.NewType([]any{
+		map[string]any{
+			"id": 1,
+			"address": map[string]any{
+				"street": "Victor Plains",
+			},
+		},
+	}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows := got.Any().([]map[string]any)
+	if rows[0]["street"] != "Victor Plains" {
+		t.Fatalf("expected nested member in output, got %#v", rows[0])
+	}
+}
+
+func TestSelectDeepMemberField(t *testing.T) {
+	p := newSelectTestParser(`
+		user1 = select
+			id,name,username,
+			address.street.geo.lat.lng
+		from json(get("https://jsonplaceholder.typicode.com/users/"))
+	`)
+
+	p.Ctx().SetFunc("get", func(vals ...value.Type) (value.Type, error) {
+		return value.NewType(`[{
+			"id": 1,
+			"name": "Leanne Graham",
+			"username": "Bret",
+			"address": {
+				"street": {
+					"geo": {
+						"lat": {
+							"lng": "Kulas Light"
+						}
+					}
+				}
+			}
+		}]`), nil
+	})
+
+	p.Ctx().SetFunc("json", func(vals ...value.Type) (value.Type, error) {
+		if len(vals) != 1 {
+			return value.NewTypeNil(), fmt.Errorf("json() expects exactly 1 argument")
+		}
+
+		var data any
+		if err := json.Unmarshal([]byte(vals[0].UnsafeCastString()), &data); err != nil {
+			return value.NewTypeNil(), err
+		}
+
+		return value.NewType(data), nil
+	})
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, v := range exprs {
+		_, err := v.Eval(p.Ctx())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, ok := p.Ctx().GetValue("user1")
+	if !ok {
+		t.Fatal("expected user1 in context")
+	}
+
+	rows, ok := got.Any().([]map[string]any)
+	if !ok {
+		t.Fatalf("expected select output, got %#v", got.Any())
+	}
+
+	if rows[0]["lng"] != "Kulas Light" {
+		t.Fatalf("expected deep nested member in output, got %#v", rows[0])
+	}
+
+}
+
+func TestSelectWhereMember(t *testing.T) {
+	p := newSelectTestParser(`
+		select name as username from users where address.city == "Gwenborough"
+	`)
+
+	p.Ctx().SetValue("users", value.NewType([]any{
+		map[string]any{
+			"name": "Leanne Graham",
+			"address": map[string]any{
+				"city": "Gwenborough",
+			},
+		},
+		map[string]any{
+			"name": "Ervin Howell",
+			"address": map[string]any{
+				"city": "Wisokyburgh",
+			},
+		},
+	}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows := got.Any().([]map[string]any)
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %#v", rows)
+	}
+
+	if rows[0]["username"] != "Leanne Graham" {
+		t.Fatalf("expected aliased field, got %#v", rows[0])
+	}
+}

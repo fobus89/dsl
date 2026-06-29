@@ -5,6 +5,7 @@ import (
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
+	any_parser "github.com/fobus89/dsl/syntax/any"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
@@ -34,6 +35,7 @@ func newUnaryProgramTestParser(input string) testParser {
 
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
+	any_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	unary_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)

@@ -10,6 +10,8 @@ import (
 	"slices"
 
 	"github.com/fobus89/dsl/parser"
+	all_parser "github.com/fobus89/dsl/syntax/all"
+	any_parser "github.com/fobus89/dsl/syntax/any"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
@@ -123,6 +125,8 @@ func main() {
 
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
+	any_parser.RegisterParser(p)
+	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)

@@ -46,11 +46,11 @@ func evalProgram(t *testing.T, p testParser) {
 func TestAnyReturnsMatchedMap(t *testing.T) {
 	p := newAnyTestParser(`r = sample any target`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
-		"id":   1,
+		"id":   int64(1),
 		"name": "user",
 	}))
 	p.Ctx().SetValue("target", value.NewType(map[string]any{
-		"id":   1,
+		"id":   float64(1),
 		"name": "user",
 		"age":  20,
 	}))
@@ -65,6 +65,35 @@ func TestAnyReturnsMatchedMap(t *testing.T) {
 	m := got.Any().(map[string]any)
 	if m["age"] != 20 {
 		t.Fatalf("expected right map, got %#v", m)
+	}
+}
+
+func TestAnyFindsMapInsideSliceWithJSONNumber(t *testing.T) {
+	p := newAnyTestParser(`r = sample any users`)
+	p.Ctx().SetValue("sample", value.NewType(map[string]any{
+		"id": int64(1),
+	}))
+	p.Ctx().SetValue("users", value.NewType([]map[string]any{
+		{
+			"id":   float64(1),
+			"name": "Leanne Graham",
+		},
+		{
+			"id":   float64(2),
+			"name": "Ervin Howell",
+		},
+	}))
+
+	evalProgram(t, p)
+
+	got, ok := p.Ctx().GetValue("r")
+	if !ok {
+		t.Fatal("expected r in context")
+	}
+
+	m := got.Any().(map[string]any)
+	if m["name"] != "Leanne Graham" {
+		t.Fatalf("expected first user, got %#v", m)
 	}
 }
 

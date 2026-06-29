@@ -128,7 +128,7 @@ func foundValue(v any, ok bool) value.Type {
 }
 
 func valAnyVal(val1, val2 any) (any, bool) {
-	if reflect.DeepEqual(val1, val2) {
+	if equalAny(val1, val2) {
 		return val1, true
 	}
 
@@ -138,7 +138,7 @@ func valAnyVal(val1, val2 any) (any, bool) {
 func valAllSlice(val any, slice any) (any, bool) {
 	v := reflect.ValueOf(slice)
 	for i := 0; i < v.Len(); i++ {
-		if reflect.DeepEqual(val, v.Index(i).Interface()) {
+		if equalAny(val, v.Index(i).Interface()) {
 			return val, true
 		}
 	}
@@ -149,7 +149,7 @@ func valAllSlice(val any, slice any) (any, bool) {
 func sliceAllVal(slice any, val any) (any, bool) {
 	v := reflect.ValueOf(slice)
 	for i := 0; i < v.Len(); i++ {
-		if !reflect.DeepEqual(v.Index(i).Interface(), val) {
+		if !equalAny(v.Index(i).Interface(), val) {
 			return nil, false
 		}
 	}
@@ -184,7 +184,7 @@ func mapAll(left, right map[string]any) (any, bool) {
 			return nil, false
 		}
 
-		if !reflect.DeepEqual(lv, rv) {
+		if !equalAny(lv, rv) {
 			return nil, false
 		}
 	}
@@ -194,7 +194,7 @@ func mapAll(left, right map[string]any) (any, bool) {
 
 func valAllMap(val any, m map[string]any) (any, bool) {
 	for _, v := range m {
-		if !reflect.DeepEqual(val, v) {
+		if !equalAny(val, v) {
 			return nil, false
 		}
 	}
@@ -216,6 +216,48 @@ func mapAllSlice(left map[string]any, right []map[string]any) (any, bool) {
 	}
 
 	return out, true
+}
+
+func equalAny(left, right any) bool {
+	if reflect.DeepEqual(left, right) {
+		return true
+	}
+
+	leftNumber, leftOK := castNumber(left)
+	rightNumber, rightOK := castNumber(right)
+
+	return leftOK && rightOK && leftNumber == rightNumber
+}
+
+func castNumber(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int8:
+		return float64(n), true
+	case int16:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint8:
+		return float64(n), true
+	case uint16:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case float32:
+		return float64(n), true
+	case float64:
+		return n, true
+	}
+
+	return 0, false
 }
 
 func mapSliceAll(left []map[string]any, right map[string]any) (any, bool) {

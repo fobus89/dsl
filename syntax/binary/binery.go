@@ -1,7 +1,6 @@
 package binary_parser
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/fobus89/dsl/ast"
@@ -59,7 +58,7 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		}
 	}
 
-	return value.NewTypeNil(), fmt.Errorf("operator %q is not supported for %s and %s", b.Op, leftVal.Typeof(), rightVal.Typeof())
+	return value.NewType(math.NaN()), nil
 }
 
 func (b *BinaryExpr) Type(_ ast.Ctx) string {

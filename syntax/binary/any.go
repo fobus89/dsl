@@ -2,81 +2,92 @@ package binary_parser
 
 import "reflect"
 
-// {id:1} any {id:1,name:"user 1"} true
-// {id:1,name:"user 1"} any {id:1} false
-func mapAny(left, right map[string]any) bool {
-
+// {id:1} any {id:1,name:"user 1"} returns right
+func mapAny(left, right map[string]any) (any, bool) {
 	for k, lv := range left {
-
 		rv, ok := right[k]
 		{
 			if !ok {
-				continue
+				return nil, false
 			}
 		}
 
-		if reflect.DeepEqual(lv, rv) {
-			return true
+		if !reflect.DeepEqual(lv, rv) {
+			return nil, false
 		}
 	}
 
-	return false
+	return right, true
 }
 
-// 1 any {id:1,name:"user 1"} true
-// 2 any {id:1,age:2} true
-// 3 any {id:1,age:2} false
-func valAnyMap(val any, m map[string]any) bool {
+func valAnyMap(val any, m map[string]any) (any, bool) {
 	for _, v := range m {
 		if reflect.DeepEqual(val, v) {
-			return true
+			return v, true
 		}
 	}
 
-	return false
+	return nil, false
 }
 
-// 1 any 1 true
-// 1 any 2 false
-func valAnyVal(val1, val2 any) bool {
-	return reflect.DeepEqual(val1, val2)
+func valAnyVal(val1, val2 any) (any, bool) {
+	if reflect.DeepEqual(val1, val2) {
+		return val1, true
+	}
+
+	return nil, false
 }
 
-func mapAnySlice(left map[string]any, right []map[string]any) bool {
+func valAnySlice(val any, slice any) (any, bool) {
+	v := reflect.ValueOf(slice)
+	for i := 0; i < v.Len(); i++ {
+		if reflect.DeepEqual(val, v.Index(i).Interface()) {
+			return val, true
+		}
+	}
+
+	return nil, false
+}
+
+func sliceAnyVal(slice any, val any) (any, bool) {
+	return valAnySlice(val, slice)
+}
+
+func mapAnySlice(left map[string]any, right []map[string]any) (any, bool) {
 	for _, m := range right {
-		if mapAny(left, m) {
-			return true
+		if v, ok := mapAny(left, m); ok {
+			return v, true
 		}
 	}
 
-	return false
+	return nil, false
 }
 
-func mapSliceAny(left []map[string]any, right map[string]any) bool {
+func mapSliceAny(left []map[string]any, right map[string]any) (any, bool) {
 	for _, m := range left {
-		if mapAny(m, right) {
-			return true
+		if v, ok := mapAny(m, right); ok {
+			return v, true
 		}
 	}
 
-	return false
+	return nil, false
 }
 
-func mapSliceAnySlice(left, right []map[string]any) bool {
+func mapSliceAnySlice(left, right []map[string]any) (any, bool) {
 	for _, l := range left {
 		for _, r := range right {
-			if mapAny(l, r) {
-				return true
+			if v, ok := mapAny(l, r); ok {
+				return v, true
 			}
 		}
 	}
 
-	return false
+	return nil, false
 }
 
-func sliceAny[T comparable](left, right []T) bool {
+func sliceAny[T comparable](left, right []T) (any, bool) {
 	if len(left) == 0 || len(right) == 0 {
-		return false
+		return nil, false
 	}
 
 	set := make(map[T]struct{}, len(right))
@@ -87,9 +98,9 @@ func sliceAny[T comparable](left, right []T) bool {
 
 	for _, v := range left {
 		if _, ok := set[v]; ok {
-			return true
+			return v, true
 		}
 	}
 
-	return false
+	return nil, false
 }

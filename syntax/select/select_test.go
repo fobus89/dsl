@@ -68,6 +68,45 @@ func TestSelectMemberField(t *testing.T) {
 	}
 }
 
+func TestSelectExpressionFieldWithAlias(t *testing.T) {
+	p := newSelectTestParser(`
+		select id as pin, 1+2 as sum, address.geo from users
+	`)
+
+	p.Ctx().SetValue("users", value.NewType(map[string]any{
+		"id": 1,
+		"address": map[string]any{
+			"geo": map[string]any{
+				"lat": "-37.3159",
+				"lng": "81.1496",
+			},
+		},
+	}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	row := got.Any().(map[string]any)
+	if row["pin"] != 1 {
+		t.Fatalf("expected pin alias, got %#v", row)
+	}
+
+	if row["sum"] != float64(3) {
+		t.Fatalf("expected expression alias sum, got %#v", row)
+	}
+
+	if row["geo"] == nil {
+		t.Fatalf("expected geo member, got %#v", row)
+	}
+}
+
 func TestSelectDeepMemberField(t *testing.T) {
 	p := newSelectTestParser(`
 		user1 = select

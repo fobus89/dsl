@@ -22,25 +22,22 @@ import (
 )
 
 func main() {
-	p := parser.NewParser(`
 
+	p := parser.NewParser(`
 		user1 = select 
 			id as pin,
+			1+2 as sum,
 			address.geo
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
 		users = select 
-			id as pin2,
-			address.geo as gg
+			id as pin,
+			address.geo
 		from json(get("https://jsonplaceholder.typicode.com/users/"))
-		where -1 < 1
-
-		user1 any users
-
-		r = -1
+		user1
+		r = testarray1 any testarray2
 		r
-		users
-		`)
+	`)
 
 	slice1 := []int{11, 7}
 

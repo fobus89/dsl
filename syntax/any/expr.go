@@ -131,15 +131,15 @@ func mapAny(left, right map[string]any) (any, bool) {
 	for k, lv := range left {
 		rv, ok := right[k]
 		if !ok {
-			return nil, false
+			continue
 		}
 
-		if !equalAny(lv, rv) {
-			return nil, false
+		if equalAny(lv, rv) {
+			return right, true
 		}
 	}
 
-	return right, true
+	return nil, false
 }
 
 func valAnyMap(val any, m map[string]any) (any, bool) {

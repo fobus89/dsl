@@ -97,6 +97,38 @@ func TestAnyFindsMapInsideSliceWithJSONNumber(t *testing.T) {
 	}
 }
 
+func TestAnyFindsMapInsideSliceByOneKeyValue(t *testing.T) {
+	p := newAnyTestParser(`r = sample any users`)
+	p.Ctx().SetValue("sample", value.NewType(map[string]any{
+		"id": int64(1),
+		"a":  int64(2),
+		"b":  int64(3),
+		"c":  int64(4),
+	}))
+	p.Ctx().SetValue("users", value.NewType([]map[string]any{
+		{
+			"id":   float64(1),
+			"name": "Leanne Graham",
+		},
+		{
+			"id":   float64(2),
+			"name": "Ervin Howell",
+		},
+	}))
+
+	evalProgram(t, p)
+
+	got, ok := p.Ctx().GetValue("r")
+	if !ok {
+		t.Fatal("expected r in context")
+	}
+
+	m := got.Any().(map[string]any)
+	if m["name"] != "Leanne Graham" {
+		t.Fatalf("expected first user by id match, got %#v", m)
+	}
+}
+
 func TestAnyPrimitiveReturnsMatchedValue(t *testing.T) {
 	p := newAnyTestParser(`r = needle any nums`)
 	p.Ctx().SetValue("needle", value.NewType(2))

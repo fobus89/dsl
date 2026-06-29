@@ -28,17 +28,17 @@ func main() {
 
 	p := parser.NewParser(`
 		somevar = {
-			id: 1,
+			id: 2,
 			a:2,
 			b:3,
-			c:4,
+			email:"Sincere@april.biz"
 		}
 
 		users = select 
 			*
-		from json(get("https://jsonplaceholder.typicode.com/users/"))
+		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
-	  	out = somevar all users
+	  	out = somevar any users
 
 		stringify(out)
 	`)

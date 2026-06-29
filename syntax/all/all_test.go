@@ -68,6 +68,37 @@ func TestAllReturnsMatchedMap(t *testing.T) {
 	}
 }
 
+func TestAllReturnsNilWhenLeftHasExtraKeys(t *testing.T) {
+	p := newAllTestParser(`r = sample all users`)
+	p.Ctx().SetValue("sample", value.NewType(map[string]any{
+		"id": int64(1),
+		"a":  int64(2),
+		"b":  int64(3),
+		"c":  int64(4),
+	}))
+	p.Ctx().SetValue("users", value.NewType([]map[string]any{
+		{
+			"id":   float64(1),
+			"name": "Leanne Graham",
+		},
+		{
+			"id":   float64(2),
+			"name": "Ervin Howell",
+		},
+	}))
+
+	evalProgram(t, p)
+
+	got, ok := p.Ctx().GetValue("r")
+	if !ok {
+		t.Fatal("expected r in context")
+	}
+
+	if !got.IsNil() {
+		t.Fatalf("expected nil because all keys must match, got %#v", got.Any())
+	}
+}
+
 func TestAllPrimitiveReturnsMatchedValue(t *testing.T) {
 	p := newAllTestParser(`r = needle all nums`)
 	p.Ctx().SetValue("needle", value.NewType(2))

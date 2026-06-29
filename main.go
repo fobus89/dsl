@@ -17,30 +17,29 @@ import (
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	member_parser "github.com/fobus89/dsl/syntax/member"
 	select_parser "github.com/fobus89/dsl/syntax/select"
+	unary_parser "github.com/fobus89/dsl/syntax/unary"
 	"github.com/fobus89/dsl/value"
 )
 
 func main() {
 	p := parser.NewParser(`
 
-		testarray1 any testarray2
-
 		user1 = select 
-			id,
-			name,
-			username,
+			id as pin,
 			address.geo
-		from json(get("https://jsonplaceholder.typicode.com/users/"))
-		where address.geo.lat == "-37.3159"
-
-		user1
-
-		user2 = select
-			id as id2,
-			name
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
-		stringify(user1)	
+		users = select 
+			id as pin2,
+			address.geo as gg
+		from json(get("https://jsonplaceholder.typicode.com/users/"))
+		where -1 < 1
+
+		user1 any users
+
+		r = -1
+		r
+		users
 		`)
 
 	slice1 := []int{11, 7}
@@ -135,6 +134,7 @@ func main() {
 	call_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	select_parser.RegisterParser(p)
+	unary_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
 
 	exprs, err := p.Parse()

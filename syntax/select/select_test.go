@@ -14,6 +14,7 @@ import (
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	member_parser "github.com/fobus89/dsl/syntax/member"
 	select_parser "github.com/fobus89/dsl/syntax/select"
+	unary_parser "github.com/fobus89/dsl/syntax/unary"
 	"github.com/fobus89/dsl/value"
 )
 
@@ -31,6 +32,7 @@ func newSelectTestParser(input string) testParser {
 	call_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	select_parser.RegisterParser(p)
+	unary_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
 
 	return p

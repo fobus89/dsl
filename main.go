@@ -29,11 +29,10 @@ func main() {
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
 		users = select 
-			id
+			id,*
 		from json(get("https://jsonplaceholder.typicode.com/users/"))
-		user1
-		r = testarray1 any testarray2
-		r
+		
+		stringify((user1 any users).address.geo)
 	`)
 
 	slice1 := []int{11, 7}

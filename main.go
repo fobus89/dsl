@@ -25,10 +25,13 @@ func main() {
 
 		testarray1 any testarray2
 
-		user1 = select
-			id,name,username,
-			address.street.zipcode
+		user1 = select 
+			id,
+			name,
+			username,
+			address.geo
 		from json(get("https://jsonplaceholder.typicode.com/users/"))
+		where address.geo.lat == "-37.3159"
 
 		user1
 

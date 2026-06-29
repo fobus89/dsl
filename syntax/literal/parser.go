@@ -13,6 +13,9 @@ func RegisterParser(p parser.Parser) {
 	p.NudRegister(token.FLOAT_LITERAL, nudFloat64Literal)
 	p.NudRegister(token.FALSE, nudBoolLiteral)
 	p.NudRegister(token.TRUE, nudBoolLiteral)
+	p.NudRegister(token.NIL, nudNilLiteral)
+	p.NudRegister(token.NULL, nudNilLiteral)
+	p.NudRegister(token.NAN, nudNanLiteral)
 	p.NudRegister(token.STRING_LITERAL, nudStringLiteral)
 	p.NudRegister(token.IDENT, nudIdentLiteral)
 
@@ -57,6 +60,16 @@ func nudBoolLiteral(p parser.Parser) (ast.Expr, error) {
 	}
 
 	return NewBoolExpr(b), nil
+}
+
+func nudNilLiteral(p parser.Parser) (ast.Expr, error) {
+	p.Next()
+	return NewNilExpr(), nil
+}
+
+func nudNanLiteral(p parser.Parser) (ast.Expr, error) {
+	p.Next()
+	return NewNanExpr(), nil
 }
 
 func nudStringLiteral(p parser.Parser) (ast.Expr, error) {

@@ -29,7 +29,9 @@ func main() {
 	p := parser.NewParser(`
 		somevar = {
 			id: 2,
-			a:2,
+			a:{
+				id: "a.id"
+			},
 			b:3,
 			email:"Sincere@april.biz"
 		}
@@ -39,8 +41,8 @@ func main() {
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
 	  	out = somevar any users
-
-		stringify(out)
+		r = 1
+		stringify(out.dsasa != null)
 	`)
 
 	slice1 := []int{11, 7}

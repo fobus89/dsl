@@ -1,7 +1,6 @@
 package member_parser
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/fobus89/dsl/ast"
@@ -40,13 +39,13 @@ func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	case map[string]any:
 		val, ok := v[string(m.property)]
 		if !ok {
-			return value.NewTypeNil(), fmt.Errorf("property %q not found", m.property)
+			return value.NewTypeNil(), nil
 		}
 
 		return value.NewType(val), nil
 	}
 
-	return value.NewTypeNil(), errors.New("not an object")
+	return value.NewTypeNil(), nil
 }
 
 func (MemberExpr) Type(ctx ast.Ctx) string {

@@ -2,6 +2,7 @@ package literal_parser
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/fobus89/dsl/ast"
@@ -62,6 +63,34 @@ func (b Bool) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (s Bool) Type(ctx ast.Ctx) string {
 	return "bool"
+}
+
+type Nil struct{}
+
+func NewNilExpr() Nil {
+	return Nil{}
+}
+
+func (Nil) Eval(ctx ast.Ctx) (value.Type, error) {
+	return value.NewTypeNil(), nil
+}
+
+func (Nil) Type(ctx ast.Ctx) string {
+	return "nil"
+}
+
+type Nan struct{}
+
+func NewNanExpr() Nan {
+	return Nan{}
+}
+
+func (Nan) Eval(ctx ast.Ctx) (value.Type, error) {
+	return value.NewType(math.NaN()), nil
+}
+
+func (Nan) Type(ctx ast.Ctx) string {
+	return "nan"
 }
 
 type Ident String

@@ -3,6 +3,7 @@ package binary_parser
 import (
 	"fmt"
 	"math"
+	"reflect"
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/token"
@@ -81,11 +82,18 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 			case token.LT_EQ:
 				return value.NewType(l <= r), nil
 			case token.EQ_EQ:
-				return value.NewType(l == r), nil
+				return value.NewType(equalValues(leftVal.Any(), rightVal.Any())), nil
 			case token.BANG_EQ:
-				return value.NewType(l != r), nil
+				return value.NewType(!equalValues(leftVal.Any(), rightVal.Any())), nil
 			}
 		}
+	}
+
+	switch b.Op {
+	case token.EQ_EQ:
+		return value.NewType(equalValues(leftVal.Any(), rightVal.Any())), nil
+	case token.BANG_EQ:
+		return value.NewType(!equalValues(leftVal.Any(), rightVal.Any())), nil
 	}
 
 	if leftVal.IsString() || rightVal.IsString() {
@@ -104,4 +112,55 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (b *BinaryExpr) Type(_ ast.Ctx) string {
 	return "Binary"
+}
+
+func equalValues(left, right any) bool {
+	leftNumber, leftNumberOK := castNumber(left)
+	rightNumber, rightNumberOK := castNumber(right)
+	if leftNumberOK && rightNumberOK {
+		if math.IsNaN(leftNumber) && math.IsNaN(rightNumber) {
+			return true
+		}
+
+		return leftNumber == rightNumber
+	}
+
+	leftFloat, leftIsFloat := left.(float64)
+	rightFloat, rightIsFloat := right.(float64)
+	if leftIsFloat && rightIsFloat && math.IsNaN(leftFloat) && math.IsNaN(rightFloat) {
+		return true
+	}
+
+	return reflect.DeepEqual(left, right)
+}
+
+func castNumber(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int8:
+		return float64(n), true
+	case int16:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint:
+		return float64(n), true
+	case uint8:
+		return float64(n), true
+	case uint16:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case float32:
+		return float64(n), true
+	case float64:
+		return n, true
+	}
+
+	return 0, false
 }

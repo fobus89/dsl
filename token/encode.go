@@ -200,6 +200,10 @@ func (t TokenType) String() string {
 		return "mut"
 	case NIL:
 		return "nil"
+	case NULL:
+		return "null"
+	case NAN:
+		return "nan"
 	case PUB:
 		return "pub"
 	case REF:

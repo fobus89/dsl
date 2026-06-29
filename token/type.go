@@ -124,6 +124,8 @@ const (
 	MATCH     // match
 	MUT       // mut
 	NIL       // nil
+	NULL      // null
+	NAN       // nan
 	PUB       // pub
 	REF       // ref
 	RETURN    // return

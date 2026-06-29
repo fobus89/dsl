@@ -28,14 +28,18 @@ func main() {
 
 		user1 = select
 			id,name,username
-		from json(get("https://jsonplaceholder.typicode.com/users/1"))
+		from json(get("https://jsonplaceholder.typicode.com/users/"))
 
 		user2 = select
-			id
+			id as id2,
+			name
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
+		 
 
-		user1 any user2
-	`)
+	  	user1 any user2
+		w = "world"
+			"hello {w} {1>2} {user2.id2} {user2.name}"
+		`)
 
 	slice1 := []int{11, 7}
 

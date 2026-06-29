@@ -296,6 +296,10 @@ func (b *BinaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		switch b.Op {
 		case token.PLUS:
 			return value.NewType(leftVal.UnsafeCastString() + rightVal.UnsafeCastString()), nil
+		case token.EQ_EQ:
+			return value.NewType(leftVal.UnsafeCastString() == rightVal.UnsafeCastString()), nil
+		case token.BANG_EQ:
+			return value.NewType(leftVal.UnsafeCastString() != rightVal.UnsafeCastString()), nil
 		}
 	}
 

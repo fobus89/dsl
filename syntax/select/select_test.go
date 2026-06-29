@@ -10,6 +10,7 @@ import (
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	member_parser "github.com/fobus89/dsl/syntax/member"
@@ -28,6 +29,7 @@ func newSelectTestParser(input string) testParser {
 
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
+	comparison_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)

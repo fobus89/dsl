@@ -6,8 +6,8 @@ import (
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
+	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
-	logical_parser "github.com/fobus89/dsl/syntax/logical"
 )
 
 type testParser interface {
@@ -20,7 +20,7 @@ func newLiteralTestParser(input string) testParser {
 
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
-	logical_parser.RegisterParser(p)
+	comparison_parser.RegisterParser(p)
 
 	return p
 }

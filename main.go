@@ -15,6 +15,7 @@ import (
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	map_parser "github.com/fobus89/dsl/syntax/map"
@@ -48,7 +49,7 @@ func main() {
 		r
 		q= null || undefined || -0
 		q
-		stringify(users)
+		stringify((users || false))
 	`)
 
 	slice1 := []int{11, 7}
@@ -139,6 +140,7 @@ func main() {
 
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
+	comparison_parser.RegisterParser(p)
 	any_parser.RegisterParser(p)
 	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)

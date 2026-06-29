@@ -107,6 +107,76 @@ func TestSelectExpressionFieldWithAlias(t *testing.T) {
 	}
 }
 
+func TestSelectStarMap(t *testing.T) {
+	p := newSelectTestParser(`
+		select * from users
+	`)
+
+	p.Ctx().SetValue("users", value.NewType(map[string]any{
+		"id":       1,
+		"name":     "Leanne Graham",
+		"username": "Bret",
+	}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	row := got.Any().(map[string]any)
+	if row["id"] != 1 || row["name"] != "Leanne Graham" || row["username"] != "Bret" {
+		t.Fatalf("expected full row, got %#v", row)
+	}
+}
+
+func TestSelectStarSliceWhereLimit(t *testing.T) {
+	p := newSelectTestParser(`
+		select * from users where active == true limit 1
+	`)
+
+	p.Ctx().SetValue("users", value.NewType([]any{
+		map[string]any{
+			"id":     1,
+			"name":   "Leanne Graham",
+			"active": true,
+		},
+		map[string]any{
+			"id":     2,
+			"name":   "Ervin Howell",
+			"active": true,
+		},
+		map[string]any{
+			"id":     3,
+			"name":   "Clementine Bauch",
+			"active": false,
+		},
+	}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows := got.Any().([]map[string]any)
+	if len(rows) != 1 {
+		t.Fatalf("expected one row, got %#v", rows)
+	}
+
+	if rows[0]["id"] != 1 || rows[0]["name"] != "Leanne Graham" || rows[0]["active"] != true {
+		t.Fatalf("expected full first active row, got %#v", rows[0])
+	}
+}
+
 func TestSelectDeepMemberField(t *testing.T) {
 	p := newSelectTestParser(`
 		user1 = select

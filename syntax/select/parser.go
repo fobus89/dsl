@@ -20,11 +20,19 @@ func parseSelect(p parser.Parser) (ast.Expr, error) {
 	var fields [][2]ast.Expr
 
 	for {
-		expr, err := p.ParseExpr(parser.Lowest)
-		{
-			if err != nil {
-				return nil, err
+		var expr ast.Expr
+
+		if p.MatchNext(token.STAR) {
+			expr = NewStarExpr()
+		} else {
+			parsed, err := p.ParseExpr(parser.Lowest)
+			{
+				if err != nil {
+					return nil, err
+				}
 			}
+
+			expr = parsed
 		}
 
 		var asIndet [2]ast.Expr

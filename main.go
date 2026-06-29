@@ -25,14 +25,11 @@ func main() {
 
 	p := parser.NewParser(`
 		user1 = select 
-			id as pin,
-			1+2 as sum,
-			address.geo
+			*
 		from json(get("https://jsonplaceholder.typicode.com/users/1"))
 
 		users = select 
-			id as pin,
-			address.geo
+			id
 		from json(get("https://jsonplaceholder.typicode.com/users/"))
 		user1
 		r = testarray1 any testarray2

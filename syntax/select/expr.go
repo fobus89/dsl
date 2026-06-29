@@ -12,6 +12,20 @@ import (
 
 type Ident = literal_parser.Ident
 
+type StarExpr struct{}
+
+func NewStarExpr() StarExpr {
+	return StarExpr{}
+}
+
+func (StarExpr) Eval(ctx ast.Ctx) (value.Type, error) {
+	return value.NewTypeNil(), nil
+}
+
+func (StarExpr) Type(ctx ast.Ctx) string {
+	return "star"
+}
+
 type SelectExpr struct {
 	fields [][2]ast.Expr
 	source ast.Expr
@@ -189,6 +203,13 @@ func (s *SelectExpr) projectRow(
 	out := make(map[string]any, len(s.fields))
 
 	for _, field := range s.fields {
+		if _, ok := field[0].(StarExpr); ok {
+			for k, v := range row {
+				out[k] = v
+			}
+			continue
+		}
+
 		val, err := field[0].Eval(localCtx)
 		if err != nil {
 			out[fieldName(ctx, field[1])] = nil

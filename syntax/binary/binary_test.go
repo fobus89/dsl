@@ -28,8 +28,15 @@ func newBinaryTestParser(input string) testParser {
 
 func TestUnsupportedBinaryMathReturnsNan(t *testing.T) {
 	tests := []string{
-		`1 / ""`,
 		`1 + {a: 1}`,
+		`1 - ""`,
+		`1 - {a: 1}`,
+		`1 * ""`,
+		`1 * {a: 1}`,
+		`1 / ""`,
+		`1 / {a: 1}`,
+		`1 % ""`,
+		`1 % {a: 1}`,
 	}
 
 	for _, input := range tests {
@@ -47,6 +54,34 @@ func TestUnsupportedBinaryMathReturnsNan(t *testing.T) {
 
 		if !math.IsNaN(got.UnsafeCastFloat64()) {
 			t.Fatalf("expected %q to return nan, got %#v", input, got.Any())
+		}
+	}
+}
+
+func TestBinaryMathOperators(t *testing.T) {
+	tests := map[string]float64{
+		`1 + 2`: 3,
+		`1 - 2`: -1,
+		`2 * 3`: 6,
+		`6 / 3`: 2,
+		`7 % 4`: 3,
+	}
+
+	for input, expected := range tests {
+		p := newBinaryTestParser(input)
+
+		exprs, err := p.Parse()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := exprs[0].Eval(p.Ctx())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got.UnsafeCastFloat64() != expected {
+			t.Fatalf("expected %q to return %v, got %#v", input, expected, got.Any())
 		}
 	}
 }

@@ -171,3 +171,33 @@ func TestSelectWhereMember(t *testing.T) {
 		t.Fatalf("expected aliased field, got %#v", rows[0])
 	}
 }
+
+func TestSelectMissingDeepMemberReturnsNil(t *testing.T) {
+	p := newSelectTestParser(`
+		select id, address.street.zipcode from users
+	`)
+
+	p.Ctx().SetValue("users", value.NewType([]any{
+		map[string]any{
+			"id": 1,
+			"address": map[string]any{
+				"street": "Kulas Light",
+			},
+		},
+	}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := exprs[0].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows := got.Any().([]map[string]any)
+	if rows[0]["zipcode"] != nil {
+		t.Fatalf("expected invalid nested member to be nil, got %#v", rows[0])
+	}
+}

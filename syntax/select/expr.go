@@ -191,7 +191,8 @@ func (s *SelectExpr) projectRow(
 	for _, field := range s.fields {
 		val, err := field[0].Eval(localCtx)
 		if err != nil {
-			return nil, false, err
+			out[fieldName(ctx, field[1])] = nil
+			continue
 		}
 
 		out[fieldName(ctx, field[1])] = val.Any()

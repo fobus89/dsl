@@ -57,6 +57,10 @@ func (*UnaryExpr) Type(_ ast.Ctx) string {
 	return "unary"
 }
 
+func (u *UnaryExpr) Parts() (token.TokenType, int, ast.Expr) {
+	return u.op, u.count, u.expr
+}
+
 func (u *UnaryExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	expr, err := u.expr.PrintGO(ctx)
 	if err != nil {

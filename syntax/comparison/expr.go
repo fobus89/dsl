@@ -65,6 +65,10 @@ func (*ComparisonExpr) Type(_ ast.Ctx) string {
 	return "comparison"
 }
 
+func (c *ComparisonExpr) Parts() (ast.Expr, token.TokenType, ast.Expr) {
+	return c.left, c.op, c.right
+}
+
 func (c *ComparisonExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	left, err := c.left.PrintGO(ctx)
 	if err != nil {

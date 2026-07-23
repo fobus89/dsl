@@ -32,6 +32,8 @@ func main() {
 		type User struct { name: *string = "hello" }
 		fn (u: *User) Name() String { return u.name + (2121 * 2 /2 * (1+22)) }
 		u = User{}
+
+		select * from json("")
 	`)
 
 	p.SetValue("id", value.NewType(12211))

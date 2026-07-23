@@ -78,6 +78,10 @@ func (*CallExpr) Type(ast.Ctx) string {
 	return "call"
 }
 
+func (c *CallExpr) Parts() (ast.Expr, []ast.Expr) {
+	return c.Callee, c.Args
+}
+
 func (c *CallExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	callee, err := c.Callee.PrintGO(ctx)
 	if err != nil {

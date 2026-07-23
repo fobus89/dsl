@@ -67,6 +67,10 @@ func (b *BinaryExpr) Type(_ ast.Ctx) string {
 	return "binary"
 }
 
+func (b *BinaryExpr) Parts() (ast.Expr, token.TokenType, ast.Expr) {
+	return b.Left, b.Op, b.Right
+}
+
 func (b *BinaryExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	left, err := b.Left.PrintGO(ctx)
 	if err != nil {

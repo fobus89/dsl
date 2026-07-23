@@ -30,6 +30,21 @@ func (m *MemberExpr) MethodName() string {
 	return string(m.property)
 }
 
+func (m *MemberExpr) Path() ([]string, bool) {
+	switch object := m.object.(type) {
+	case Ident:
+		return []string{string(object), string(m.property)}, true
+	case interface{ Path() ([]string, bool) }:
+		path, ok := object.Path()
+		if !ok {
+			return nil, false
+		}
+		return append(path, string(m.property)), true
+	default:
+		return nil, false
+	}
+}
+
 func (m *MemberExpr) String() string {
 	return fmt.Sprintf("%s.%s", m.object, m.property)
 }

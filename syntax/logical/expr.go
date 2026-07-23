@@ -46,3 +46,24 @@ func (l *LogicalExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 func (*LogicalExpr) Type(_ ast.Ctx) string {
 	return "logical"
 }
+
+func (l *LogicalExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	op := l.op.String()
+	switch l.op {
+	case token.AND:
+		op = token.AMP_AMP.String()
+	case token.OR:
+		op = token.PIPE_PIPE.String()
+	}
+
+	left, err := l.left.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+	right, err := l.right.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return "(" + left + " " + op + " " + right + ")", nil
+}

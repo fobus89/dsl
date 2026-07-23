@@ -2,6 +2,8 @@ package typedecl_parser
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/fobus89/dsl/ast"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
@@ -61,6 +63,36 @@ func (*TypeDecl) Type(ast.Ctx) string {
 	return "type_decl"
 }
 
+func (d *TypeDecl) PrintGO(ast.Ctx) (string, error) {
+	if d.Def.Kind == ast.AliasType {
+		return fmt.Sprintf(
+			"type %s %s",
+			d.Def.Name,
+			ast.GoTypeName(d.Def.Underlying),
+		), nil
+	}
+
+	names := make([]string, 0, len(d.Def.Fields))
+	for name := range d.Def.Fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fields := make([]string, 0, len(names))
+	for _, name := range names {
+		fields = append(
+			fields,
+			name+" "+ast.GoTypeName(d.Def.Fields[name]),
+		)
+	}
+
+	return fmt.Sprintf(
+		"type %s struct {\n\t%s\n}",
+		d.Def.Name,
+		strings.Join(fields, "\n\t"),
+	), nil
+}
+
 type FieldValue struct {
 	Name  string
 	Value ast.Expr
@@ -112,4 +144,20 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (*StructLiteral) Type(ast.Ctx) string {
 	return "struct_literal"
+}
+
+func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
+	fields := make([]string, 0, len(s.Fields))
+	for _, field := range s.Fields {
+		printed, err := field.Value.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		fields = append(
+			fields,
+			field.Name+": "+printed,
+		)
+	}
+
+	return string(s.TypeName) + "{" + strings.Join(fields, ", ") + "}", nil
 }

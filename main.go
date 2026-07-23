@@ -29,15 +29,10 @@ import (
 
 func main() {
 	p := parser.NewParser(`
-			result = json(get("https://jsonplaceholder.typicode.com/todos"))
-			
-		  stringify(
-						select *, 12+22 + id as aaa from result where completed and userId == 9
-		)
-			
-
-
+		type User struct { name: *string }
+		fn (u: *User) Name() String { return u.name + (2121 * 2 /2 * (1+22)) }
 	`)
+
 	p.SetValue("id", value.NewType(12211))
 
 	slice1 := []int{11, 7}
@@ -175,17 +170,24 @@ func main() {
 	}
 
 	for _, expr := range exprs {
-		v, err := expr.Eval(p.Ctx())
-		{
-			if err != nil {
-				fmt.Println(err)
-			} else if v.Any() != nil {
-				fmt.Println(v.Any())
-			}
+		// v, err := expr.Eval(p.Ctx())
+		// {
+		// 	if err != nil {
+		// 		fmt.Println(err)
+		// 	} else if v.Any() != nil {
+		// 		fmt.Println(v.Any())
+		// 	}
+		// }
+
+		code, err := expr.PrintGO(p.Ctx())
+		if err != nil {
+			log.Fatalln(err)
 		}
+		fmt.Println(code)
 	}
 
-	res, _ := p.GetValue("result")
+	// res, _ := p.GetValue("result")
 
-	fmt.Println(res.UnsafeCastString())
+	// fmt.Println(res.UnsafeCastString())
+
 }

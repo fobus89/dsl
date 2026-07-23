@@ -63,3 +63,32 @@ func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 func (MemberExpr) Type(ctx ast.Ctx) string {
 	return "member"
 }
+
+func (m MemberExpr) ValueType(ctx ast.Ctx) string {
+	var objectType string
+
+	switch object := m.object.(type) {
+	case Ident:
+		if val, ok := ctx.GetValue(string(object)); ok {
+			objectType = val.TypeName()
+		}
+	case interface{ ValueType(ast.Ctx) string }:
+		objectType = object.ValueType(ctx)
+	}
+
+	def, ok := ctx.GetType(objectType)
+	if !ok {
+		return ""
+	}
+
+	return def.Fields[string(m.property)]
+}
+
+func (m MemberExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	object, err := m.object.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return object + "." + string(m.property), nil
+}

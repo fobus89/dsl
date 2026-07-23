@@ -129,6 +129,11 @@ func parseStructLiteral(
 }
 
 func parseTypeName(p parser.Parser) (string, error) {
+	pointer := ""
+	for p.MatchNext(token.STAR) {
+		pointer += "*"
+	}
+
 	tok := p.CurrentToken()
 	if tok.Type != token.IDENT && !tok.Type.IsType() {
 		return "", fmt.Errorf(
@@ -140,7 +145,7 @@ func parseTypeName(p parser.Parser) (string, error) {
 	}
 
 	p.Next()
-	return tok.Literal, nil
+	return pointer + tok.Literal, nil
 }
 
 func parseIdent(p parser.Parser, label string) (Ident, error) {

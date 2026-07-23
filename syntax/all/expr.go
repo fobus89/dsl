@@ -119,6 +119,19 @@ func (*AllExpr) Type(_ ast.Ctx) string {
 	return "all"
 }
 
+func (a *AllExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	left, err := a.left.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+	right, err := a.right.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return "All(" + left + ", " + right + ")", nil
+}
+
 func foundValue(v any, ok bool) value.Type {
 	if !ok {
 		return value.NewTypeNil()

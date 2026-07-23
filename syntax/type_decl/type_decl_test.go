@@ -31,6 +31,36 @@ func newTypeDeclTestParser(input string) testParser {
 	return p
 }
 
+func TestPointerStructFieldPrintGO(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		type User struct {
+			name: *String
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decl, ok := exprs[0].(*typedecl_parser.TypeDecl)
+	if !ok {
+		t.Fatalf("expected *TypeDecl, got %T", exprs[0])
+	}
+	if got := decl.Def.Fields["name"]; got != "*String" {
+		t.Fatalf("field type = %q, want %q", got, "*String")
+	}
+
+	got, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "type User struct {\n\tname *string\n}"
+	if got != want {
+		t.Fatalf("PrintGO() = %q, want %q", got, want)
+	}
+}
+
 func TestAliasConstructorPreservesDeclaredType(t *testing.T) {
 	p := newTypeDeclTestParser(`
 		type UserID int

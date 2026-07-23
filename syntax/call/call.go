@@ -2,6 +2,7 @@ package call_parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fobus89/dsl/ast"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
@@ -75,4 +76,22 @@ func (c *CallExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (*CallExpr) Type(ast.Ctx) string {
 	return "call"
+}
+
+func (c *CallExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	callee, err := c.Callee.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	args := make([]string, 0, len(c.Args))
+	for _, arg := range c.Args {
+		printed, err := arg.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		args = append(args, printed)
+	}
+
+	return callee + "(" + strings.Join(args, ", ") + ")", nil
 }

@@ -65,6 +65,19 @@ func (*ComparisonExpr) Type(_ ast.Ctx) string {
 	return "comparison"
 }
 
+func (c *ComparisonExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	left, err := c.left.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+	right, err := c.right.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return "(" + left + " " + c.op.String() + " " + right + ")", nil
+}
+
 func equalValues(left, right any) bool {
 	leftNumber, leftNumberOK := castNumber(left)
 	rightNumber, rightNumberOK := castNumber(right)

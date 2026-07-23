@@ -3,6 +3,7 @@ package select_parser
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/fobus89/dsl/ast"
@@ -24,6 +25,10 @@ func (StarExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (StarExpr) Type(ctx ast.Ctx) string {
 	return "star"
+}
+
+func (StarExpr) PrintGO(ast.Ctx) (string, error) {
+	return "Star()", nil
 }
 
 type SelectExpr struct {
@@ -177,6 +182,52 @@ func (s *SelectExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (s *SelectExpr) Type(ctx ast.Ctx) string {
 	return ""
+}
+
+func (s *SelectExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	fields := make([]string, 0, len(s.fields))
+	for _, field := range s.fields {
+		printed, err := field[0].PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		fields = append(
+			fields,
+			"SelectField{Name: "+
+				strconv.Quote(fieldName(ctx, field[1]))+
+				", Value: "+printed+"}",
+		)
+	}
+
+	where := "true"
+	if s.where != nil {
+		printed, err := s.where.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		where = printed
+	}
+
+	limit := "-1"
+	if s.limit != nil {
+		printed, err := s.limit.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		limit = printed
+	}
+
+	source, err := s.source.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return "Select(" +
+		source +
+		", []SelectField{" + strings.Join(fields, ", ") + "}" +
+		", " + where +
+		", " + limit +
+		")", nil
 }
 
 func (s *SelectExpr) projectRow(

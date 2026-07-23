@@ -1,6 +1,9 @@
 package map_parser
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/value"
 )
@@ -37,4 +40,20 @@ func (m *MapExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (*MapExpr) Type(_ ast.Ctx) string {
 	return "map"
+}
+
+func (m *MapExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	entries := make([]string, 0, len(m.entries))
+	for _, entry := range m.entries {
+		printed, err := entry.value.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		entries = append(
+			entries,
+			strconv.Quote(entry.key)+": "+printed,
+		)
+	}
+
+	return "map[string]any{" + strings.Join(entries, ", ") + "}", nil
 }

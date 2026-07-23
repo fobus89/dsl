@@ -63,12 +63,12 @@ func (*TypeDecl) Type(ast.Ctx) string {
 	return "type_decl"
 }
 
-func (d *TypeDecl) PrintGO(ast.Ctx) (string, error) {
+func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	if d.Def.Kind == ast.AliasType {
 		return fmt.Sprintf(
 			"type %s %s",
 			d.Def.Name,
-			d.Def.Underlying.GoString(),
+			d.Def.Underlying.GoString(ctx),
 		), nil
 	}
 
@@ -82,7 +82,7 @@ func (d *TypeDecl) PrintGO(ast.Ctx) (string, error) {
 	for _, name := range names {
 		fields = append(
 			fields,
-			name+" "+d.Def.Fields[name].Type.GoString(),
+			name+" "+d.Def.Fields[name].Type.GoString(ctx),
 		)
 	}
 

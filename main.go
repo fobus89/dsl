@@ -28,6 +28,7 @@ import (
 )
 
 func main() {
+
 	p := parser.NewParser(`
 		type Int int
 		fn Str() string {

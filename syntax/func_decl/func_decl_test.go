@@ -178,6 +178,49 @@ func TestReturnTypeRejectsNumberAsString(t *testing.T) {
 	}
 }
 
+func TestCustomIntReturnTypeIsPreserved(t *testing.T) {
+	p := newFuncDeclTestParser(`
+		type Int int
+		fn numb() Int {
+			return 122
+		}
+		numb()
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	typeCode, err := exprs[0].PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typeCode != "type Int int" {
+		t.Fatalf("generated type = %q", typeCode)
+	}
+
+	funcCode, err := exprs[1].PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "func numb() Int {\n\treturn 122\n}"
+	if funcCode != want {
+		t.Fatalf("PrintGO() = %q, want %q", funcCode, want)
+	}
+
+	result, err := exprs[2].Eval(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.TypeName() != "Int" {
+		t.Fatalf("return type = %q, want Int", result.TypeName())
+	}
+	if result.UnsafeCastInt() != 122 {
+		t.Fatalf("return value = %v, want 122", result.Any())
+	}
+}
+
 func TestFunctionIsAvailableBeforeItsDeclaration(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		add(2, 3)

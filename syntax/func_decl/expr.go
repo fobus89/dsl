@@ -125,9 +125,13 @@ func (d *FuncDecl) coerceReturn(
 	}
 
 	name := d.ReturnType.Name
-	if _, declared := ctx.GetType(name); declared {
+	if def, declared := ctx.GetType(name); declared {
 		if result.TypeName() == name {
 			return result, nil
+		}
+		if def.Kind == ast.AliasType &&
+			returnValueMatches(ctx, def.Underlying, result) {
+			return value.NewTypeWithExplicit(result.Any(), name), nil
 		}
 		return value.NewTypeNil(), fmt.Errorf(
 			"func %s cannot return %s as %s",
@@ -210,6 +214,41 @@ func (d *FuncDecl) coerceReturn(
 	)
 }
 
+func returnValueMatches(
+	ctx ast.Ctx,
+	target ast.TypeRef,
+	result value.Type,
+) bool {
+	if target.IsPtr {
+		return result.TypeName() == target.String()
+	}
+
+	if def, declared := ctx.GetType(target.Name); declared {
+		if result.TypeName() == target.Name {
+			return true
+		}
+		return def.Kind == ast.AliasType &&
+			returnValueMatches(ctx, def.Underlying, result)
+	}
+
+	switch strings.ToLower(target.Name) {
+	case "any":
+		return true
+	case "void":
+		return result.IsNil()
+	case "string":
+		return result.IsString()
+	case "bool":
+		return result.IsBool()
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"float32", "float64", "rune", "byte":
+		return result.IsNumber()
+	}
+
+	return false
+}
+
 func (*FuncDecl) Eval(ast.Ctx) (value.Type, error) {
 	return value.NewTypeNil(), nil
 }
@@ -249,7 +288,7 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	for _, param := range d.Params {
 		paramType := "any"
 		if param.Type != nil {
-			paramType = param.Type.GoString()
+			paramType = param.Type.GoString(ctx)
 			printCtx.SetValue(
 				string(param.Name),
 				value.NewTypeWithExplicit(nil, param.Type.String()),
@@ -264,7 +303,7 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		receiverType := d.Recv.Type.GoString()
+		receiverType := d.Recv.Type.GoString(ctx)
 		receiver = fmt.Sprintf(
 			"(%s %s) ",
 			receiverName,
@@ -274,7 +313,7 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 
 	returnType := ""
 	if d.ReturnType != nil {
-		returnType = " " + d.ReturnType.GoString()
+		returnType = " " + d.ReturnType.GoString(ctx)
 	}
 
 	body := make([]string, 0, len(d.Body))
@@ -348,16 +387,25 @@ func validateReturnGO(
 		return returnTypeError(funcName, source, *target)
 	}
 
-	sourceName := ast.GoTypeName(source.Name)
-	targetName := ast.GoTypeName(target.Name)
+	sourceName := strings.TrimPrefix(source.GoString(ctx), "*")
+	targetName := strings.TrimPrefix(target.GoString(ctx), "*")
 	if sourceName == targetName {
 		return nil
 	}
-	if isNumericType(sourceName) && isNumericType(targetName) {
+	if isNumericType(underlyingGoType(ctx, source)) &&
+		isNumericType(underlyingGoType(ctx, *target)) {
 		return nil
 	}
 
 	return returnTypeError(funcName, source, *target)
+}
+
+func underlyingGoType(ctx ast.Ctx, ref ast.TypeRef) string {
+	if def, declared := ctx.GetType(ref.Name); declared &&
+		def.Kind == ast.AliasType {
+		return underlyingGoType(ctx, def.Underlying)
+	}
+	return ast.GoTypeName(ref.Name)
 }
 
 func goExprType(ctx ast.Ctx, expr ast.Expr) (ast.TypeRef, bool) {

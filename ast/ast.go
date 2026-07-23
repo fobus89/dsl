@@ -37,11 +37,20 @@ func (t TypeRef) String() string {
 	return t.Name
 }
 
-func (t TypeRef) GoString() string {
-	if t.IsPtr {
-		return "*" + GoTypeName(t.Name)
+func (t TypeRef) GoString(ctx Ctx) string {
+	name := t.Name
+	if ctx != nil {
+		if _, declared := ctx.GetType(name); !declared {
+			name = GoTypeName(name)
+		}
+	} else {
+		name = GoTypeName(name)
 	}
-	return GoTypeName(t.Name)
+
+	if t.IsPtr {
+		return "*" + name
+	}
+	return name
 }
 
 type FieldDef struct {

@@ -16,7 +16,11 @@ import (
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
+	flow_parser "github.com/fobus89/dsl/syntax/flow"
+	forstmt_parser "github.com/fobus89/dsl/syntax/for_stmt"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
+	ifstmt_parser "github.com/fobus89/dsl/syntax/if_stmt"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	map_parser "github.com/fobus89/dsl/syntax/map"
@@ -41,9 +45,16 @@ func main() {
 
 		q = numb() + numb()
 
-		type User struct { name: *string = Str() }
+		type User struct { name: *string = Str() id:int=-1 }
 		fn (u: *User) Name() String { return u.name + (2121 * 2 /2 * (1+22)) }
 		u = User{}
+
+		sum = 0
+		for item in testarray2 {
+			if true {
+				sum = sum + item
+			}
+		}
 	`)
 
 	p.SetValue("id", value.NewType(12211))
@@ -163,11 +174,15 @@ func main() {
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
 	comparison_parser.RegisterParser(p)
+	flow_parser.RegisterParser(p)
+	forstmt_parser.RegisterParser(p)
 	any_parser.RegisterParser(p)
 	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
+	ifstmt_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	select_parser.RegisterParser(p)

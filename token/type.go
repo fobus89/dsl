@@ -104,6 +104,7 @@ const (
 	BREAK     // break
 	CATCH     // catch
 	CONST     // const
+	CONTINUE  // continue
 	DEFER     // defer
 	DO        // do
 	ELSE      // else

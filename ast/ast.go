@@ -87,6 +87,32 @@ type Validatable interface {
 	Validate(Ctx) error
 }
 
+type FlowKind uint8
+
+const (
+	BreakFlow FlowKind = iota + 1
+	ContinueFlow
+	YieldFlow
+)
+
+type FlowSignal struct {
+	Kind  FlowKind
+	Value value.Type
+}
+
+func (s FlowSignal) Error() string {
+	switch s.Kind {
+	case BreakFlow:
+		return "break"
+	case ContinueFlow:
+		return "continue"
+	case YieldFlow:
+		return "yield"
+	default:
+		return "control flow"
+	}
+}
+
 func GoTypeName(name string) string {
 	pointer := ""
 	for strings.HasPrefix(name, "*") {

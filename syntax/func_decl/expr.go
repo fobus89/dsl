@@ -318,15 +318,13 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 
 	body := make([]string, 0, len(d.Body))
 	for _, expr := range d.Body {
-		if returned, ok := expr.(*ReturnStmt); ok {
-			if err := validateReturnGO(
-				printCtx,
-				string(d.Name),
-				d.ReturnType,
-				returned,
-			); err != nil {
-				return "", err
-			}
+		if err := validateReturnTree(
+			printCtx,
+			string(d.Name),
+			d.ReturnType,
+			expr,
+		); err != nil {
+			return "", err
 		}
 
 		printed, err := expr.PrintGO(printCtx)
@@ -344,6 +342,32 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		returnType,
 		strings.Join(body, "\n"),
 	), nil
+}
+
+func validateReturnTree(
+	ctx ast.Ctx,
+	funcName string,
+	target *ast.TypeRef,
+	expr ast.Expr,
+) error {
+	if returned, ok := expr.(*ReturnStmt); ok {
+		return validateReturnGO(ctx, funcName, target, returned)
+	}
+
+	if container, ok := expr.(interface{ ChildExprs() []ast.Expr }); ok {
+		for _, child := range container.ChildExprs() {
+			if err := validateReturnTree(
+				ctx,
+				funcName,
+				target,
+				child,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func validateReturnGO(

@@ -154,6 +154,8 @@ func (t TokenType) String() string {
 		return "catch"
 	case CONST:
 		return "const"
+	case CONTINUE:
+		return "continue"
 	case DEFER:
 		return "defer"
 	case DO:

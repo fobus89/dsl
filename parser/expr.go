@@ -2,8 +2,10 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/fobus89/dsl/ast"
+	"github.com/fobus89/dsl/token"
 )
 
 func (p *parser) ParseStmt() (ast.Expr, error) {
@@ -22,6 +24,11 @@ func (p *parser) ParseStmt() (ast.Expr, error) {
 }
 
 func (p *parser) ParseExpr(bp BindingPower) (ast.Expr, error) {
+	p.exprDepth++
+	defer func() {
+		p.exprDepth--
+	}()
+
 	tokKind := p.CurrentTokenKind()
 
 	nudHandler, ok := p.NudOrNone(tokKind)
@@ -41,6 +48,10 @@ func (p *parser) ParseExpr(bp BindingPower) (ast.Expr, error) {
 	for {
 
 		tokKind = p.CurrentTokenKind()
+		if p.exprDepth == p.stopDepth &&
+			slices.Contains(p.stopTokens, tokKind) {
+			break
+		}
 
 		curBp := p.Bp(tokKind)
 		{
@@ -65,4 +76,22 @@ func (p *parser) ParseExpr(bp BindingPower) (ast.Expr, error) {
 	}
 
 	return left, nil
+}
+
+func (p *parser) ParseExprUntil(
+	bp BindingPower,
+	stops ...token.TokenType,
+) (ast.Expr, error) {
+	oldStopDepth := p.stopDepth
+	oldStopTokens := p.stopTokens
+
+	p.stopDepth = p.exprDepth + 1
+	p.stopTokens = stops
+
+	defer func() {
+		p.stopDepth = oldStopDepth
+		p.stopTokens = oldStopTokens
+	}()
+
+	return p.ParseExpr(bp)
 }

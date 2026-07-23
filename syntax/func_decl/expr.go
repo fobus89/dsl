@@ -16,8 +16,9 @@ type (
 )
 
 type Param struct {
-	Name Ident
-	Type Expr
+	Name  Ident
+	Type  Expr
+	IsPtr bool
 }
 
 // FuncDecl represents both a function and a method declaration.
@@ -221,6 +222,98 @@ func (*FuncDecl) Type(_ ast.Ctx) string {
 	return "func_decl"
 }
 
+func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
+	printCtx := ctx.GetLocalCtx()
+
+	if d.Recv != nil {
+		receiverType, err := d.Recv.Type.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		if def, ok := ctx.GetType(receiverType); ok {
+			if _, exists := def.Fields[string(d.Name)]; exists {
+				return "", fmt.Errorf(
+					"type %s has both field and method named %s",
+					receiverType,
+					d.Name,
+				)
+			}
+		}
+
+		printCtx.SetValue(
+			string(d.Recv.Name),
+			value.NewTypeWithExplicit(nil, receiverType),
+		)
+	}
+
+	params := make([]string, 0, len(d.Params))
+	for _, param := range d.Params {
+		paramType := "any"
+		if param.Type != nil {
+			printed, err := param.Type.PrintGO(ctx)
+			if err != nil {
+				return "", err
+			}
+			paramType = ast.GoTypeName(printed)
+			printCtx.SetValue(
+				string(param.Name),
+				value.NewTypeWithExplicit(nil, printed),
+			)
+		}
+		params = append(params, string(param.Name)+" "+paramType)
+	}
+
+	receiver := ""
+	if d.Recv != nil {
+		receiverName, err := d.Recv.Name.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		receiverType, err := d.Recv.Type.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		receiverPointer := ""
+		if d.Recv.IsPtr {
+			receiverPointer = "*"
+		}
+		receiver = fmt.Sprintf(
+			"(%s %s%s) ",
+			receiverName,
+			receiverPointer,
+			receiverType,
+		)
+	}
+
+	returnType := ""
+	if d.ReturnType != nil {
+		printed, err := d.ReturnType.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		returnType = " " + ast.GoTypeName(printed)
+	}
+
+	body := make([]string, 0, len(d.Body))
+	for _, expr := range d.Body {
+		printed, err := expr.PrintGO(printCtx)
+		if err != nil {
+			return "", err
+		}
+		body = append(body, "\t"+printed)
+	}
+
+	return fmt.Sprintf(
+		"func %s%s(%s)%s {\n%s\n}",
+		receiver,
+		d.Name,
+		strings.Join(params, ", "),
+		returnType,
+		strings.Join(body, "\n"),
+	), nil
+}
+
 type ReturnStmt struct {
 	Value Expr
 }
@@ -245,6 +338,19 @@ func (r *ReturnStmt) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (*ReturnStmt) Type(_ ast.Ctx) string {
 	return "return_stmt"
+}
+
+func (r *ReturnStmt) PrintGO(ctx ast.Ctx) (string, error) {
+	if r.Value == nil {
+		return "return", nil
+	}
+
+	value, err := r.Value.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return "return " + value, nil
 }
 
 type returnSignal struct {

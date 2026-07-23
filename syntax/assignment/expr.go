@@ -37,3 +37,12 @@ func (a *AssignmentExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 func (*AssignmentExpr) Type(ctx ast.Ctx) string {
 	return "assignment"
 }
+
+func (a *AssignmentExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	expr, err := a.expr.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return string(a.ident) + " := " + expr, nil
+}

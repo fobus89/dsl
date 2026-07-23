@@ -1,6 +1,10 @@
 package ast
 
-import "github.com/fobus89/dsl/value"
+import (
+	"strings"
+
+	"github.com/fobus89/dsl/value"
+)
 
 type Func = func(...value.Type) (value.Type, error)
 
@@ -33,8 +37,56 @@ type Ctx interface {
 type Expr interface {
 	Eval(Ctx) (value.Type, error)
 	Type(Ctx) string
+	PrintGO(Ctx) (string, error)
 }
 
 type Validatable interface {
 	Validate(Ctx) error
+}
+
+func GoTypeName(name string) string {
+	pointer := ""
+	for strings.HasPrefix(name, "*") {
+		pointer += "*"
+		name = strings.TrimPrefix(name, "*")
+	}
+
+	switch strings.ToLower(name) {
+	case "bool":
+		return pointer + "bool"
+	case "int":
+		return pointer + "int"
+	case "int8":
+		return pointer + "int8"
+	case "int16":
+		return pointer + "int16"
+	case "int32":
+		return pointer + "int32"
+	case "int64":
+		return pointer + "int64"
+	case "uint":
+		return pointer + "uint"
+	case "uint8":
+		return pointer + "uint8"
+	case "uint16":
+		return pointer + "uint16"
+	case "uint32":
+		return pointer + "uint32"
+	case "uint64":
+		return pointer + "uint64"
+	case "float32":
+		return pointer + "float32"
+	case "float64":
+		return pointer + "float64"
+	case "string":
+		return pointer + "string"
+	case "char", "rune":
+		return pointer + "rune"
+	case "byte":
+		return pointer + "byte"
+	case "any":
+		return pointer + "any"
+	}
+
+	return pointer + name
 }

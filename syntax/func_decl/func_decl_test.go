@@ -84,8 +84,40 @@ func TestParseMethodDeclaration(t *testing.T) {
 	if decl.Recv.Name != "u" {
 		t.Fatalf("expected receiver u, got %s", decl.Recv.Name)
 	}
+	if decl.Recv.IsPtr {
+		t.Fatal("expected value receiver")
+	}
 	if decl.Name != "name" {
 		t.Fatalf("expected name, got %s", decl.Name)
+	}
+}
+
+func TestParseAndPrintPointerMethodReceiver(t *testing.T) {
+	p := newFuncDeclTestParser(`
+		type User struct { name: string }
+		fn (u: *User) Name() String { return u.name }
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decl, ok := exprs[1].(*funcdecl_parser.FuncDecl)
+	if !ok {
+		t.Fatalf("expected *FuncDecl, got %T", exprs[1])
+	}
+	if !decl.Recv.IsPtr {
+		t.Fatal("expected pointer receiver")
+	}
+
+	got, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "func (u *User) Name() string {\n\treturn u.name\n}"
+	if got != want {
+		t.Fatalf("PrintGO() = %q, want %q", got, want)
 	}
 }
 

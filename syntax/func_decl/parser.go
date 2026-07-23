@@ -76,6 +76,8 @@ func parseReceiver(p parser.Parser) (*Param, error) {
 		return nil, expected(p, token.COLON)
 	}
 
+	isPtr := p.MatchNext(token.STAR)
+
 	receiverType, err := parseIdent(p, "receiver type")
 	if err != nil {
 		return nil, err
@@ -85,7 +87,7 @@ func parseReceiver(p parser.Parser) (*Param, error) {
 		return nil, expected(p, token.RPARENT)
 	}
 
-	return &Param{Name: name, Type: receiverType}, nil
+	return &Param{Name: name, Type: receiverType, IsPtr: isPtr}, nil
 }
 
 func parseParams(p parser.Parser) ([]Param, error) {

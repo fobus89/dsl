@@ -2,6 +2,7 @@ package unary_parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/token"
@@ -54,4 +55,22 @@ func (u *UnaryExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (*UnaryExpr) Type(_ ast.Ctx) string {
 	return "unary"
+}
+
+func (u *UnaryExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	expr, err := u.expr.PrintGO(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	count := u.count
+	if u.op == token.BANG {
+		count %= 2
+	}
+	if count == 0 {
+		return "(" + expr + ")", nil
+	}
+
+	return "(" + strings.Repeat(u.op.String(), count) +
+		expr + ")", nil
 }

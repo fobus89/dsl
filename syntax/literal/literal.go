@@ -3,6 +3,7 @@ package literal_parser
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/fobus89/dsl/ast"
@@ -23,6 +24,10 @@ func (f Float64) Type(ctx ast.Ctx) string {
 	return "float64"
 }
 
+func (f Float64) PrintGO(ast.Ctx) (string, error) {
+	return strconv.FormatFloat(float64(f), 'f', -1, 64), nil
+}
+
 type Int int
 
 func NewIntExpr(value int) Int {
@@ -35,6 +40,10 @@ func (i Int) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (f Int) Type(ctx ast.Ctx) string {
 	return "int"
+}
+
+func (i Int) PrintGO(ast.Ctx) (string, error) {
+	return strconv.FormatInt(int64(i), 10), nil
 }
 
 type String string
@@ -51,6 +60,10 @@ func (s String) Type(ctx ast.Ctx) string {
 	return "string"
 }
 
+func (s String) PrintGO(ast.Ctx) (string, error) {
+	return strconv.Quote(string(s)), nil
+}
+
 type Bool bool
 
 func NewBoolExpr(value bool) Bool {
@@ -63,6 +76,10 @@ func (b Bool) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (s Bool) Type(ctx ast.Ctx) string {
 	return "bool"
+}
+
+func (b Bool) PrintGO(ast.Ctx) (string, error) {
+	return strconv.FormatBool(bool(b)), nil
 }
 
 type Nil struct{}
@@ -79,6 +96,10 @@ func (Nil) Type(ctx ast.Ctx) string {
 	return "nil"
 }
 
+func (Nil) PrintGO(ast.Ctx) (string, error) {
+	return "nil", nil
+}
+
 type Nan struct{}
 
 func NewNanExpr() Nan {
@@ -93,6 +114,10 @@ func (Nan) Type(ctx ast.Ctx) string {
 	return "nan"
 }
 
+func (Nan) PrintGO(ast.Ctx) (string, error) {
+	return "math.NaN()", nil
+}
+
 type Undefined struct{}
 
 func NewUndefinedExpr() Undefined {
@@ -105,6 +130,10 @@ func (Undefined) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (Undefined) Type(ctx ast.Ctx) string {
 	return "undefined"
+}
+
+func (Undefined) PrintGO(ast.Ctx) (string, error) {
+	return "nil", nil
 }
 
 type Ident String
@@ -127,6 +156,10 @@ func (i Ident) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (Ident) Type(ctx ast.Ctx) string {
 	return "ident"
+}
+
+func (i Ident) PrintGO(ast.Ctx) (string, error) {
+	return string(i), nil
 }
 
 type FormatStringExpr struct {
@@ -159,4 +192,17 @@ func (f *FormatStringExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (FormatStringExpr) Type(ctx ast.Ctx) string {
 	return "formatString"
+}
+
+func (f FormatStringExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	parts := make([]string, 0, len(f.parts))
+	for _, part := range f.parts {
+		printed, err := part.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, printed)
+	}
+
+	return "fmt.Sprint(" + strings.Join(parts, ", ") + ")", nil
 }

@@ -129,69 +129,76 @@ func (d *FuncDecl) coerceReturn(
 		if result.TypeName() == name {
 			return result, nil
 		}
-		return value.NewTypeWithExplicit(result.Any(), name), nil
+		return value.NewTypeNil(), fmt.Errorf(
+			"func %s cannot return %s as %s",
+			d.Name,
+			result.TypeName(),
+			name,
+		)
 	}
 
 	switch strings.ToLower(name) {
 	case "any":
 		return result, nil
 	case "void":
-		return value.NewTypeNil(), nil
+		if result.IsNil() {
+			return value.NewTypeNil(), nil
+		}
 	case "int":
-		if v, ok := result.CastInt(); ok {
+		if v, ok := result.CastInt(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "int8":
-		if v, ok := result.CastInt8(); ok {
+		if v, ok := result.CastInt8(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "int16":
-		if v, ok := result.CastInt16(); ok {
+		if v, ok := result.CastInt16(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "int32", "rune":
-		if v, ok := result.CastInt32(); ok {
+		if v, ok := result.CastInt32(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "int64":
-		if v, ok := result.CastInt64(); ok {
+		if v, ok := result.CastInt64(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "uint":
-		if v, ok := result.CastUint(); ok {
+		if v, ok := result.CastUint(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "uint8", "byte":
-		if v, ok := result.CastUint8(); ok {
+		if v, ok := result.CastUint8(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "uint16":
-		if v, ok := result.CastUint16(); ok {
+		if v, ok := result.CastUint16(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "uint32":
-		if v, ok := result.CastUint32(); ok {
+		if v, ok := result.CastUint32(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "uint64":
-		if v, ok := result.CastUint64(); ok {
+		if v, ok := result.CastUint64(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "float32":
-		if v, ok := result.CastFloat32(); ok {
+		if v, ok := result.CastFloat32(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "float64":
-		if v, ok := result.CastFloat64(); ok {
+		if v, ok := result.CastFloat64(); ok && result.IsNumber() {
 			return value.NewType(v), nil
 		}
 	case "string":
-		if v, ok := result.CastString(); ok {
-			return value.NewType(v), nil
+		if result.IsString() {
+			return result, nil
 		}
 	case "bool":
-		if v, ok := result.CastBool(); ok {
-			return value.NewType(v), nil
+		if result.IsBool() {
+			return result, nil
 		}
 	}
 
@@ -272,6 +279,17 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 
 	body := make([]string, 0, len(d.Body))
 	for _, expr := range d.Body {
+		if returned, ok := expr.(*ReturnStmt); ok {
+			if err := validateReturnGO(
+				printCtx,
+				string(d.Name),
+				d.ReturnType,
+				returned,
+			); err != nil {
+				return "", err
+			}
+		}
+
 		printed, err := expr.PrintGO(printCtx)
 		if err != nil {
 			return "", err
@@ -287,6 +305,112 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		returnType,
 		strings.Join(body, "\n"),
 	), nil
+}
+
+func validateReturnGO(
+	ctx ast.Ctx,
+	funcName string,
+	target *ast.TypeRef,
+	returned *ReturnStmt,
+) error {
+	if target == nil || strings.EqualFold(target.Name, "any") {
+		return nil
+	}
+
+	if returned.Value == nil {
+		if strings.EqualFold(target.Name, "void") {
+			return nil
+		}
+		return fmt.Errorf(
+			"func %s must return %s",
+			funcName,
+			target.String(),
+		)
+	}
+
+	if strings.EqualFold(target.Name, "void") {
+		return fmt.Errorf("func %s cannot return a value as void", funcName)
+	}
+
+	source, known := goExprType(ctx, returned.Value)
+	if !known {
+		return nil
+	}
+
+	if source.Name == "nil" {
+		if target.IsPtr {
+			return nil
+		}
+		return returnTypeError(funcName, source, *target)
+	}
+
+	if source.IsPtr != target.IsPtr {
+		return returnTypeError(funcName, source, *target)
+	}
+
+	sourceName := ast.GoTypeName(source.Name)
+	targetName := ast.GoTypeName(target.Name)
+	if sourceName == targetName {
+		return nil
+	}
+	if isNumericType(sourceName) && isNumericType(targetName) {
+		return nil
+	}
+
+	return returnTypeError(funcName, source, *target)
+}
+
+func goExprType(ctx ast.Ctx, expr ast.Expr) (ast.TypeRef, bool) {
+	switch expr.(type) {
+	case literal_parser.Int:
+		return ast.TypeRef{Name: "int"}, true
+	case literal_parser.Float64:
+		return ast.TypeRef{Name: "float64"}, true
+	case literal_parser.String:
+		return ast.TypeRef{Name: "string"}, true
+	case literal_parser.Bool:
+		return ast.TypeRef{Name: "bool"}, true
+	case literal_parser.Nil:
+		return ast.TypeRef{Name: "nil"}, true
+	}
+
+	if typed, ok := expr.(interface {
+		ValueType(ast.Ctx) ast.TypeRef
+	}); ok {
+		valueType := typed.ValueType(ctx)
+		return valueType, valueType.Name != ""
+	}
+
+	if ident, ok := expr.(Ident); ok {
+		if val, found := ctx.GetValue(string(ident)); found {
+			return ast.ParseTypeRef(val.TypeName()), true
+		}
+	}
+
+	return ast.TypeRef{}, false
+}
+
+func isNumericType(name string) bool {
+	switch name {
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"float32", "float64", "rune", "byte":
+		return true
+	}
+	return false
+}
+
+func returnTypeError(
+	funcName string,
+	source ast.TypeRef,
+	target ast.TypeRef,
+) error {
+	return fmt.Errorf(
+		"func %s cannot return %s as %s",
+		funcName,
+		source.String(),
+		target.String(),
+	)
 }
 
 type ReturnStmt struct {

@@ -191,6 +191,10 @@ func (*StructLiteral) Type(ast.Ctx) string {
 	return "struct_literal"
 }
 
+func (s *StructLiteral) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: string(s.TypeName)}
+}
+
 func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
 	typeName := string(s.TypeName)
 	def, ok := ctx.GetType(typeName)

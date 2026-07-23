@@ -29,11 +29,20 @@ import (
 
 func main() {
 	p := parser.NewParser(`
-		type User struct { name: *string = "hello" }
+		type Int int
+		fn Str() string {
+			return "hello" + 122
+		}
+	
+		fn numb() Int {
+			return  122
+		}
+
+		q = numb() + numb()
+
+		type User struct { name: *string = Str() }
 		fn (u: *User) Name() String { return u.name + (2121 * 2 /2 * (1+22)) }
 		u = User{}
-
-		select * from json("")
 	`)
 
 	p.SetValue("id", value.NewType(12211))

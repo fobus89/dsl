@@ -152,6 +152,32 @@ func TestPointerParameterAndReturnType(t *testing.T) {
 	}
 }
 
+func TestReturnTypeRejectsNumberAsString(t *testing.T) {
+	p := newFuncDeclTestParser(`
+		fn bad() String {
+			return 123
+		}
+		bad()
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := exprs[0].PrintGO(p.Ctx()); err == nil {
+		t.Fatal("expected PrintGO return type error")
+	} else if !strings.Contains(err.Error(), "cannot return int as String") {
+		t.Fatalf("unexpected PrintGO error: %v", err)
+	}
+
+	if _, err := exprs[1].Eval(p.Ctx()); err == nil {
+		t.Fatal("expected interpreter return type error")
+	} else if !strings.Contains(err.Error(), "cannot return int64 as String") {
+		t.Fatalf("unexpected interpreter error: %v", err)
+	}
+}
+
 func TestFunctionIsAvailableBeforeItsDeclaration(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		add(2, 3)

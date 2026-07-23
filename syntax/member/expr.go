@@ -64,21 +64,23 @@ func (MemberExpr) Type(ctx ast.Ctx) string {
 	return "member"
 }
 
-func (m MemberExpr) ValueType(ctx ast.Ctx) string {
-	var objectType string
+func (m MemberExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
+	var objectType ast.TypeRef
 
 	switch object := m.object.(type) {
 	case Ident:
 		if val, ok := ctx.GetValue(string(object)); ok {
-			objectType = val.TypeName()
+			objectType = ast.ParseTypeRef(val.TypeName())
 		}
-	case interface{ ValueType(ast.Ctx) string }:
+	case interface {
+		ValueType(ast.Ctx) ast.TypeRef
+	}:
 		objectType = object.ValueType(ctx)
 	}
 
-	def, ok := ctx.GetType(objectType)
+	def, ok := ctx.GetType(objectType.Name)
 	if !ok {
-		return ""
+		return ast.TypeRef{}
 	}
 
 	return def.Fields[string(m.property)]

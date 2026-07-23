@@ -47,8 +47,11 @@ func TestPointerStructFieldPrintGO(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *TypeDecl, got %T", exprs[0])
 	}
-	if got := decl.Def.Fields["name"]; got != "*String" {
-		t.Fatalf("field type = %q, want %q", got, "*String")
+	if got := decl.Def.Fields["name"]; got != (ast.TypeRef{
+		Name:  "String",
+		IsPtr: true,
+	}) {
+		t.Fatalf("field type = %#v, want pointer to String", got)
 	}
 
 	got, err := decl.PrintGO(p.Ctx())

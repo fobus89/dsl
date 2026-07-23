@@ -68,7 +68,7 @@ func (d *TypeDecl) PrintGO(ast.Ctx) (string, error) {
 		return fmt.Sprintf(
 			"type %s %s",
 			d.Def.Name,
-			ast.GoTypeName(d.Def.Underlying),
+			d.Def.Underlying.GoString(),
 		), nil
 	}
 
@@ -82,7 +82,7 @@ func (d *TypeDecl) PrintGO(ast.Ctx) (string, error) {
 	for _, name := range names {
 		fields = append(
 			fields,
-			name+" "+ast.GoTypeName(d.Def.Fields[name]),
+			name+" "+d.Def.Fields[name].GoString(),
 		)
 	}
 
@@ -132,9 +132,12 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 		if err != nil {
 			return value.NewTypeNil(), err
 		}
-		if _, declared := ctx.GetType(fieldType); declared &&
-			evaluated.TypeName() != fieldType {
-			evaluated = value.NewTypeWithExplicit(evaluated.Any(), fieldType)
+		if _, declared := ctx.GetType(fieldType.Name); declared &&
+			evaluated.TypeName() != fieldType.Name {
+			evaluated = value.NewTypeWithExplicit(
+				evaluated.Any(),
+				fieldType.Name,
+			)
 		}
 		result[field.Name] = evaluated
 	}

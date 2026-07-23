@@ -25,12 +25,12 @@ func parseTypeDecl(p parser.Parser) (ast.Expr, error) {
 	def := ast.TypeDef{
 		Name:   string(name),
 		Kind:   ast.AliasType,
-		Fields: map[string]string{},
+		Fields: map[string]ast.TypeRef{},
 	}
 
 	if p.MatchNext(token.Struct) {
 		def.Kind = ast.StructType
-		def.Underlying = token.Struct.String()
+		def.Underlying = ast.TypeRef{Name: token.Struct.String()}
 
 		fields, err := parseStructFields(p)
 		if err != nil {
@@ -48,12 +48,12 @@ func parseTypeDecl(p parser.Parser) (ast.Expr, error) {
 	return NewTypeDecl(p.Ctx(), def), nil
 }
 
-func parseStructFields(p parser.Parser) (map[string]string, error) {
+func parseStructFields(p parser.Parser) (map[string]ast.TypeRef, error) {
 	if !p.MatchNext(token.LBRACE) {
 		return nil, expected(p, token.LBRACE)
 	}
 
-	fields := map[string]string{}
+	fields := map[string]ast.TypeRef{}
 	for !p.MatchNext(token.RBRACE) {
 		name, err := parseIdent(p, "field name")
 		if err != nil {
@@ -128,15 +128,12 @@ func parseStructLiteral(
 	return NewStructLiteral(typeName, fields), nil
 }
 
-func parseTypeName(p parser.Parser) (string, error) {
-	pointer := ""
-	for p.MatchNext(token.STAR) {
-		pointer += "*"
-	}
+func parseTypeName(p parser.Parser) (ast.TypeRef, error) {
+	isPtr := p.MatchNext(token.STAR)
 
 	tok := p.CurrentToken()
 	if tok.Type != token.IDENT && !tok.Type.IsType() {
-		return "", fmt.Errorf(
+		return ast.TypeRef{}, fmt.Errorf(
 			"expected type name, got %s at %d:%d",
 			tok.Type,
 			tok.Line,
@@ -145,7 +142,7 @@ func parseTypeName(p parser.Parser) (string, error) {
 	}
 
 	p.Next()
-	return pointer + tok.Literal, nil
+	return ast.TypeRef{Name: tok.Literal, IsPtr: isPtr}, nil
 }
 
 func parseIdent(p parser.Parser, label string) (Ident, error) {

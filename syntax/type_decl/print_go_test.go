@@ -13,9 +13,9 @@ func TestTypeDeclPrintGO(t *testing.T) {
 	decl := NewTypeDecl(ctx, ast.TypeDef{
 		Name: "User",
 		Kind: ast.StructType,
-		Fields: map[string]string{
-			"name": "string",
-			"id":   "int64",
+		Fields: map[string]ast.TypeRef{
+			"name": {Name: "string"},
+			"id":   {Name: "int64"},
 		},
 	})
 

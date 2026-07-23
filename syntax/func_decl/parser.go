@@ -32,13 +32,15 @@ func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
 		return nil, err
 	}
 
-	var returnType ast.Expr
-	if p.Match(token.IDENT) || p.CurrentToken().Type.IsType() {
-		ident, err := parseTypeIdent(p, "return type")
+	var returnType *ast.TypeRef
+	if p.Match(token.STAR) ||
+		p.Match(token.IDENT) ||
+		p.CurrentToken().Type.IsType() {
+		typeRef, err := parseTypeRef(p, "return type")
 		if err != nil {
 			return nil, err
 		}
-		returnType = ident
+		returnType = typeRef
 	}
 
 	if !p.MatchNext(token.LBRACE) {
@@ -76,9 +78,7 @@ func parseReceiver(p parser.Parser) (*Param, error) {
 		return nil, expected(p, token.COLON)
 	}
 
-	isPtr := p.MatchNext(token.STAR)
-
-	receiverType, err := parseIdent(p, "receiver type")
+	receiverType, err := parseTypeRef(p, "receiver type")
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func parseReceiver(p parser.Parser) (*Param, error) {
 		return nil, expected(p, token.RPARENT)
 	}
 
-	return &Param{Name: name, Type: receiverType, IsPtr: isPtr}, nil
+	return &Param{Name: name, Type: receiverType}, nil
 }
 
 func parseParams(p parser.Parser) ([]Param, error) {
@@ -104,7 +104,7 @@ func parseParams(p parser.Parser) ([]Param, error) {
 
 		param := Param{Name: name}
 		if p.MatchNext(token.COLON) {
-			paramType, err := parseTypeIdent(p, "parameter type")
+			paramType, err := parseTypeRef(p, "parameter type")
 			if err != nil {
 				return nil, err
 			}
@@ -138,9 +138,11 @@ func parseReturnStmt(p parser.Parser) (ast.Expr, error) {
 	return NewReturnStmt(expr), nil
 }
 
-func parseTypeIdent(p parser.Parser, label string) (Ident, error) {
+func parseTypeRef(p parser.Parser, label string) (*ast.TypeRef, error) {
+	isPtr := p.MatchNext(token.STAR)
+
 	if !p.Match(token.IDENT) && !p.CurrentToken().Type.IsType() {
-		return "", fmt.Errorf(
+		return nil, fmt.Errorf(
 			"expected %s, got %s at %d:%d",
 			label,
 			p.CurrentToken().Type,
@@ -150,7 +152,7 @@ func parseTypeIdent(p parser.Parser, label string) (Ident, error) {
 	}
 
 	tok := p.Next()
-	return literal_parser.NewIdentExpr(tok.Literal), nil
+	return &ast.TypeRef{Name: tok.Literal, IsPtr: isPtr}, nil
 }
 
 func parseIdent(p parser.Parser, label string) (Ident, error) {

@@ -16,9 +16,8 @@ type (
 )
 
 type Param struct {
-	Name  Ident
-	Type  Expr
-	IsPtr bool
+	Name Ident
+	Type *ast.TypeRef
 }
 
 // FuncDecl represents both a function and a method declaration.
@@ -27,7 +26,7 @@ type FuncDecl struct {
 	Recv       *Param
 	Name       Ident
 	Params     []Param
-	ReturnType Expr
+	ReturnType *ast.TypeRef
 	Body       []Expr
 }
 
@@ -36,7 +35,7 @@ func NewFuncDecl(
 	recv *Param,
 	name Ident,
 	params []Param,
-	returnType Expr,
+	returnType *ast.TypeRef,
 	body []Expr,
 ) *FuncDecl {
 	decl := &FuncDecl{
@@ -60,8 +59,8 @@ func (d *FuncDecl) Validate(ctx ast.Ctx) error {
 		return nil
 	}
 
-	receiverType := d.Recv.Type.(Ident)
-	if _, ok := ctx.GetType(string(receiverType)); !ok {
+	receiverType := d.Recv.Type.Name
+	if _, ok := ctx.GetType(receiverType); !ok {
 		return fmt.Errorf("receiver type %s is not declared", receiverType)
 	}
 
@@ -110,8 +109,7 @@ func (d *FuncDecl) bind(ctx ast.Ctx) {
 	}
 
 	if d.IsMethod() {
-		receiverType := d.Recv.Type.(Ident)
-		ctx.SetMethod(string(receiverType), string(d.Name), fn)
+		ctx.SetMethod(d.Recv.Type.Name, string(d.Name), fn)
 		return
 	}
 
@@ -126,16 +124,7 @@ func (d *FuncDecl) coerceReturn(
 		return result, nil
 	}
 
-	returnType, ok := d.ReturnType.(Ident)
-	if !ok {
-		return value.NewTypeNil(), fmt.Errorf(
-			"invalid return type %T for func %s",
-			d.ReturnType,
-			d.Name,
-		)
-	}
-
-	name := string(returnType)
+	name := d.ReturnType.Name
 	if _, declared := ctx.GetType(name); declared {
 		if result.TypeName() == name {
 			return result, nil
@@ -226,24 +215,26 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	printCtx := ctx.GetLocalCtx()
 
 	if d.Recv != nil {
-		receiverType, err := d.Recv.Type.PrintGO(ctx)
-		if err != nil {
-			return "", err
-		}
+		receiverType := d.Recv.Type.Name
 
-		if def, ok := ctx.GetType(receiverType); ok {
-			if _, exists := def.Fields[string(d.Name)]; exists {
-				return "", fmt.Errorf(
-					"type %s has both field and method named %s",
-					receiverType,
-					d.Name,
-				)
-			}
+		def, ok := ctx.GetType(receiverType)
+		if !ok {
+			return "", fmt.Errorf(
+				"receiver type %s is not declared",
+				receiverType,
+			)
+		}
+		if _, exists := def.Fields[string(d.Name)]; exists {
+			return "", fmt.Errorf(
+				"type %s has both field and method named %s",
+				receiverType,
+				d.Name,
+			)
 		}
 
 		printCtx.SetValue(
 			string(d.Recv.Name),
-			value.NewTypeWithExplicit(nil, receiverType),
+			value.NewTypeWithExplicit(nil, d.Recv.Type.String()),
 		)
 	}
 
@@ -251,14 +242,10 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	for _, param := range d.Params {
 		paramType := "any"
 		if param.Type != nil {
-			printed, err := param.Type.PrintGO(ctx)
-			if err != nil {
-				return "", err
-			}
-			paramType = ast.GoTypeName(printed)
+			paramType = param.Type.GoString()
 			printCtx.SetValue(
 				string(param.Name),
-				value.NewTypeWithExplicit(nil, printed),
+				value.NewTypeWithExplicit(nil, param.Type.String()),
 			)
 		}
 		params = append(params, string(param.Name)+" "+paramType)
@@ -270,29 +257,17 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		receiverType, err := d.Recv.Type.PrintGO(ctx)
-		if err != nil {
-			return "", err
-		}
-		receiverPointer := ""
-		if d.Recv.IsPtr {
-			receiverPointer = "*"
-		}
+		receiverType := d.Recv.Type.GoString()
 		receiver = fmt.Sprintf(
-			"(%s %s%s) ",
+			"(%s %s) ",
 			receiverName,
-			receiverPointer,
 			receiverType,
 		)
 	}
 
 	returnType := ""
 	if d.ReturnType != nil {
-		printed, err := d.ReturnType.PrintGO(ctx)
-		if err != nil {
-			return "", err
-		}
-		returnType = " " + ast.GoTypeName(printed)
+		returnType = " " + d.ReturnType.GoString()
 	}
 
 	body := make([]string, 0, len(d.Body))

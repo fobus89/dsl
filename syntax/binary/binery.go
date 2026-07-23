@@ -80,6 +80,8 @@ func (b *BinaryExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	if b.Op == token.PLUS {
 		leftString := isStringExpr(ctx, b.Left)
 		rightString := isStringExpr(ctx, b.Right)
+		left = valueExpr(ctx, b.Left, left)
+		right = valueExpr(ctx, b.Right, right)
 
 		switch {
 		case leftString && rightString:
@@ -106,31 +108,18 @@ func (b *BinaryExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	return "(" + left + " " + b.Op.String() + " " + right + ")", nil
 }
 
-func (b *BinaryExpr) ValueType(ctx ast.Ctx) string {
+func (b *BinaryExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
 	if b.Op == token.PLUS &&
 		(isStringExpr(ctx, b.Left) || isStringExpr(ctx, b.Right)) {
-		return "string"
+		return ast.TypeRef{Name: "string"}
 	}
 
-	return "float64"
+	return ast.TypeRef{Name: "float64"}
 }
 
 func isStringExpr(ctx ast.Ctx, expr ast.Expr) bool {
-	if _, ok := expr.(literal_parser.String); ok {
-		return true
-	}
-
-	if typed, ok := expr.(interface{ ValueType(ast.Ctx) string }); ok {
-		return strings.EqualFold(typed.ValueType(ctx), "string")
-	}
-
-	if ident, ok := expr.(literal_parser.Ident); ok {
-		v, found := ctx.GetValue(string(ident))
-		return found && (v.IsString() ||
-			strings.EqualFold(v.TypeName(), "string"))
-	}
-
-	return false
+	ref, ok := exprType(ctx, expr)
+	return ok && strings.EqualFold(ref.Name, "string")
 }
 
 func strconvExpr(ctx ast.Ctx, expr ast.Expr) (string, error) {
@@ -138,6 +127,7 @@ func strconvExpr(ctx ast.Ctx, expr ast.Expr) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	code = valueExpr(ctx, expr, code)
 
 	switch expr.(type) {
 	case literal_parser.Int:
@@ -148,24 +138,58 @@ func strconvExpr(ctx ast.Ctx, expr ast.Expr) (string, error) {
 		return "strconv.FormatBool(" + code + ")", nil
 	}
 
-	if ident, ok := expr.(literal_parser.Ident); ok {
-		if v, found := ctx.GetValue(string(ident)); found {
-			switch v.Typeof() {
-			case "int", "int8", "int16", "int32", "int64":
-				return "strconv.FormatInt(int64(" + code + "), 10)", nil
-			case "uint", "uint8", "uint16", "uint32", "uint64":
-				return "strconv.FormatUint(uint64(" + code + "), 10)", nil
-			case "float32":
-				return "strconv.FormatFloat(float64(" + code + "), 'f', -1, 32)", nil
-			case "float64":
-				return "strconv.FormatFloat(float64(" + code + "), 'f', -1, 64)", nil
-			case "bool":
-				return "strconv.FormatBool(" + code + ")", nil
-			case "string":
-				return code, nil
-			}
+	if ref, ok := exprType(ctx, expr); ok {
+		switch strings.ToLower(ref.Name) {
+		case "int", "int8", "int16", "int32", "int64":
+			return "strconv.FormatInt(int64(" + code + "), 10)", nil
+		case "uint", "uint8", "uint16", "uint32", "uint64":
+			return "strconv.FormatUint(uint64(" + code + "), 10)", nil
+		case "float32":
+			return "strconv.FormatFloat(float64(" + code + "), 'f', -1, 32)", nil
+		case "float64":
+			return "strconv.FormatFloat(float64(" + code + "), 'f', -1, 64)", nil
+		case "bool":
+			return "strconv.FormatBool(" + code + ")", nil
+		case "string":
+			return code, nil
 		}
 	}
 
 	return "fmt.Sprint(" + code + ")", nil
+}
+
+func valueExpr(ctx ast.Ctx, expr ast.Expr, code string) string {
+	ref, ok := exprType(ctx, expr)
+	if ok && ref.IsPtr {
+		return "(*" + code + ")"
+	}
+	return code
+}
+
+func exprType(ctx ast.Ctx, expr ast.Expr) (ast.TypeRef, bool) {
+	switch expr.(type) {
+	case literal_parser.String:
+		return ast.TypeRef{Name: "string"}, true
+	case literal_parser.Int:
+		return ast.TypeRef{Name: "int64"}, true
+	case literal_parser.Float64:
+		return ast.TypeRef{Name: "float64"}, true
+	case literal_parser.Bool:
+		return ast.TypeRef{Name: "bool"}, true
+	}
+
+	if typed, ok := expr.(interface {
+		ValueType(ast.Ctx) ast.TypeRef
+	}); ok {
+		ref := typed.ValueType(ctx)
+		return ref, ref.Name != ""
+	}
+
+	if ident, ok := expr.(literal_parser.Ident); ok {
+		if v, found := ctx.GetValue(string(ident)); found {
+			return ast.ParseTypeRef(v.TypeName()), true
+		}
+	}
+
+	return ast.TypeRef{}, false
 }

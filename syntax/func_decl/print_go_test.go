@@ -17,8 +17,8 @@ func TestPrintGORejectsMethodWithSameNameAsField(t *testing.T) {
 	ctx.SetType("User", ast.TypeDef{
 		Name: "User",
 		Kind: ast.StructType,
-		Fields: map[string]string{
-			"name": "string",
+		Fields: map[string]ast.TypeRef{
+			"name": {Name: "string"},
 		},
 	})
 
@@ -26,11 +26,11 @@ func TestPrintGORejectsMethodWithSameNameAsField(t *testing.T) {
 		ctx,
 		&Param{
 			Name: literal_parser.NewIdentExpr("u"),
-			Type: literal_parser.NewIdentExpr("User"),
+			Type: &ast.TypeRef{Name: "User"},
 		},
 		literal_parser.NewIdentExpr("name"),
 		nil,
-		literal_parser.NewIdentExpr("string"),
+		&ast.TypeRef{Name: "string"},
 		nil,
 	)
 
@@ -48,8 +48,8 @@ func TestPrintGOUsesMemberTypeForStringConcatenation(t *testing.T) {
 	ctx.SetType("User", ast.TypeDef{
 		Name: "User",
 		Kind: ast.StructType,
-		Fields: map[string]string{
-			"name": "string",
+		Fields: map[string]ast.TypeRef{
+			"name": {Name: "string"},
 		},
 	})
 
@@ -58,11 +58,11 @@ func TestPrintGOUsesMemberTypeForStringConcatenation(t *testing.T) {
 		ctx,
 		&Param{
 			Name: receiver,
-			Type: literal_parser.NewIdentExpr("User"),
+			Type: &ast.TypeRef{Name: "User"},
 		},
 		literal_parser.NewIdentExpr("Name"),
 		nil,
-		literal_parser.NewIdentExpr("String"),
+		&ast.TypeRef{Name: "String"},
 		[]ast.Expr{
 			NewReturnStmt(
 				binary_parser.NewBinaryExpr(

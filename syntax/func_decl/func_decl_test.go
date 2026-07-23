@@ -84,7 +84,7 @@ func TestParseMethodDeclaration(t *testing.T) {
 	if decl.Recv.Name != "u" {
 		t.Fatalf("expected receiver u, got %s", decl.Recv.Name)
 	}
-	if decl.Recv.IsPtr {
+	if decl.Recv.Type.IsPtr {
 		t.Fatal("expected value receiver")
 	}
 	if decl.Name != "name" {
@@ -107,7 +107,7 @@ func TestParseAndPrintPointerMethodReceiver(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *FuncDecl, got %T", exprs[1])
 	}
-	if !decl.Recv.IsPtr {
+	if !decl.Recv.Type.IsPtr {
 		t.Fatal("expected pointer receiver")
 	}
 
@@ -116,6 +116,37 @@ func TestParseAndPrintPointerMethodReceiver(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "func (u *User) Name() string {\n\treturn u.name\n}"
+	if got != want {
+		t.Fatalf("PrintGO() = %q, want %q", got, want)
+	}
+}
+
+func TestPointerParameterAndReturnType(t *testing.T) {
+	p := newFuncDeclTestParser(`
+		fn copy(value: *String) *String {
+			return value
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decl := exprs[0].(*funcdecl_parser.FuncDecl)
+	if decl.Params[0].Type.Name != "String" ||
+		!decl.Params[0].Type.IsPtr {
+		t.Fatalf("unexpected parameter type: %#v", decl.Params[0].Type)
+	}
+	if decl.ReturnType.Name != "String" || !decl.ReturnType.IsPtr {
+		t.Fatalf("unexpected return type: %#v", decl.ReturnType)
+	}
+
+	got, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "func copy(value *string) *string {\n\treturn value\n}"
 	if got != want {
 		t.Fatalf("PrintGO() = %q, want %q", got, want)
 	}

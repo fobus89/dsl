@@ -15,11 +15,40 @@ const (
 	StructType TypeKind = "struct"
 )
 
+type TypeRef struct {
+	Name  string
+	IsPtr bool
+}
+
+func ParseTypeRef(name string) TypeRef {
+	if strings.HasPrefix(name, "*") {
+		return TypeRef{
+			Name:  strings.TrimPrefix(name, "*"),
+			IsPtr: true,
+		}
+	}
+	return TypeRef{Name: name}
+}
+
+func (t TypeRef) String() string {
+	if t.IsPtr {
+		return "*" + t.Name
+	}
+	return t.Name
+}
+
+func (t TypeRef) GoString() string {
+	if t.IsPtr {
+		return "*" + GoTypeName(t.Name)
+	}
+	return GoTypeName(t.Name)
+}
+
 type TypeDef struct {
 	Name       string
 	Kind       TypeKind
-	Underlying string
-	Fields     map[string]string
+	Underlying TypeRef
+	Fields     map[string]TypeRef
 }
 
 type Ctx interface {

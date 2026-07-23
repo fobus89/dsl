@@ -180,6 +180,10 @@ func (i Ident) PrintGO(ast.Ctx) (string, error) {
 	return string(i), nil
 }
 
+func (i Ident) StructTypeName() string {
+	return string(i)
+}
+
 type TypeLiteral struct {
 	Ref ast.TypeRef
 }

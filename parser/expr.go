@@ -52,6 +52,10 @@ func (p *parser) ParseExpr(bp BindingPower) (ast.Expr, error) {
 			slices.Contains(p.stopTokens, tokKind) {
 			break
 		}
+		if tokKind == token.LBRACE &&
+			!p.isStructLiteralTarget(left) {
+			break
+		}
 
 		curBp := p.Bp(tokKind)
 		{
@@ -76,6 +80,18 @@ func (p *parser) ParseExpr(bp BindingPower) (ast.Expr, error) {
 	}
 
 	return left, nil
+}
+
+func (p *parser) isStructLiteralTarget(expr ast.Expr) bool {
+	target, ok := expr.(interface {
+		StructTypeName() string
+	})
+	if !ok {
+		return false
+	}
+
+	def, declared := p.ctx.GetType(target.StructTypeName())
+	return declared && def.Kind == ast.StructType
 }
 
 func (p *parser) ParseExprUntil(

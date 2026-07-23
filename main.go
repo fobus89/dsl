@@ -57,20 +57,30 @@ func main() {
 			}
 		}
 
-		let mixed = [2][][]int{
-			{{1}, {2}},
-			{{3, 4}},
+		let mixed = [2][][]User{
+
 		}
 
 		for item in mixed {
-			for item2 in item {
-				for item3 in item2 {
-					
-				}
+				for item2 in item {
+					for item3 in item2 {
+
+					}
 			}
 		}
-		
+
+		let result = for item in mixed {
+			if item == 2 {
+				continue
+			}
+			if item == 4 {
+				break
+			}
+			yield item
+		}
+
 	`)
+
 	p.SetValue("id", value.NewType(12211))
 
 	slice1 := []int{11, 7}

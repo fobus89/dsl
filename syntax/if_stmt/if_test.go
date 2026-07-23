@@ -11,6 +11,7 @@ import (
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	ifstmt_parser "github.com/fobus89/dsl/syntax/if_stmt"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
+	typedecl_parser "github.com/fobus89/dsl/syntax/type_decl"
 	"github.com/fobus89/dsl/value"
 )
 
@@ -26,6 +27,7 @@ func newIfParser(input string) testParser {
 	call_parser.RegisterParser(p)
 	ifstmt_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
+	typedecl_parser.RegisterParser(p)
 	return p
 }
 

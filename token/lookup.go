@@ -118,6 +118,12 @@ func LookupReservedToken(key string) (TokenType, bool) {
 		}
 	}
 
+	// Collections are expressed as []T and [N]T. The old array/slice
+	// pseudo-types have no grammar and must remain available as identifiers.
+	if token == Array || token == Slice {
+		return ILLEGAL, false
+	}
+
 	if token.IsKeyword() || token.IsBuiltin() || token.IsCompiletime() || token.IsType() {
 		return token, true
 	}

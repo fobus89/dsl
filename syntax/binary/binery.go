@@ -186,7 +186,7 @@ func exprType(ctx ast.Ctx, expr ast.Expr) (ast.TypeRef, bool) {
 		ValueType(ast.Ctx) ast.TypeRef
 	}); ok {
 		ref := typed.ValueType(ctx)
-		return ref, ref.Name != ""
+		return ref, !ref.IsZero()
 	}
 
 	if ident, ok := expr.(literal_parser.Ident); ok {

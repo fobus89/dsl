@@ -9,6 +9,7 @@ import (
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	map_parser "github.com/fobus89/dsl/syntax/map"
@@ -29,9 +30,28 @@ func newFuncDeclTestParser(input string) testParser {
 	call_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
+	collection_parser.RegisterParser(p)
 	typedecl_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
 	return p
+}
+
+func TestCollectionReturnTypeIsChecked(t *testing.T) {
+	p := newFuncDeclTestParser(`
+		fn items() []int {
+			return []string{"wrong"}
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = exprs[0].PrintGO(p.Ctx())
+	if err == nil ||
+		!strings.Contains(err.Error(), "cannot return []string as []int") {
+		t.Fatalf("expected collection return type error, got %v", err)
+	}
 }
 
 func TestParseFunctionDeclaration(t *testing.T) {

@@ -140,20 +140,7 @@ func parseStructLiteral(
 }
 
 func parseTypeName(p parser.Parser) (ast.TypeRef, error) {
-	isPtr := p.MatchNext(token.STAR)
-
-	tok := p.CurrentToken()
-	if tok.Type != token.IDENT && !tok.Type.IsType() {
-		return ast.TypeRef{}, fmt.Errorf(
-			"expected type name, got %s at %d:%d",
-			tok.Type,
-			tok.Line,
-			tok.Col,
-		)
-	}
-
-	p.Next()
-	return ast.TypeRef{Name: tok.Literal, IsPtr: isPtr}, nil
+	return parser.ParseTypeRef(p, "type name")
 }
 
 func parseIdent(p parser.Parser, label string) (Ident, error) {

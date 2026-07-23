@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/fobus89/dsl/value"
@@ -15,29 +16,107 @@ const (
 	StructType TypeKind = "struct"
 )
 
+type TypeRefKind uint8
+
+const (
+	NamedTypeRef TypeRefKind = iota
+	ArrayTypeRef
+	SliceTypeRef
+)
+
 type TypeRef struct {
 	Name  string
 	IsPtr bool
+	Kind  TypeRefKind
+	Elem  *TypeRef
+	Len   int
 }
 
 func ParseTypeRef(name string) TypeRef {
-	if strings.HasPrefix(name, "*") {
-		return TypeRef{
-			Name:  strings.TrimPrefix(name, "*"),
-			IsPtr: true,
-		}
+	ref, rest := parseTypeRefString(name)
+	if rest == "" {
+		return ref
 	}
 	return TypeRef{Name: name}
 }
 
-func (t TypeRef) String() string {
-	if t.IsPtr {
-		return "*" + t.Name
+func parseTypeRefString(name string) (TypeRef, string) {
+	ref := TypeRef{}
+	if strings.HasPrefix(name, "*") {
+		ref.IsPtr = true
+		name = strings.TrimPrefix(name, "*")
 	}
-	return t.Name
+
+	if strings.HasPrefix(name, "[]") {
+		elem, rest := parseTypeRefString(strings.TrimPrefix(name, "[]"))
+		ref.Kind = SliceTypeRef
+		ref.Elem = &elem
+		return ref, rest
+	}
+
+	if strings.HasPrefix(name, "[") {
+		end := strings.IndexByte(name, ']')
+		if end > 1 {
+			length, err := strconv.Atoi(name[1:end])
+			if err == nil {
+				elem, rest := parseTypeRefString(name[end+1:])
+				ref.Kind = ArrayTypeRef
+				ref.Len = length
+				ref.Elem = &elem
+				return ref, rest
+			}
+		}
+	}
+
+	ref.Name = name
+	return ref, ""
+}
+
+func (t TypeRef) IsZero() bool {
+	return t.Name == "" && t.Elem == nil
+}
+
+func (t TypeRef) String() string {
+	prefix := ""
+	if t.IsPtr {
+		prefix = "*"
+	}
+
+	switch t.Kind {
+	case ArrayTypeRef:
+		if t.Elem == nil {
+			return prefix + "[" + strconv.Itoa(t.Len) + "]any"
+		}
+		return prefix + "[" + strconv.Itoa(t.Len) + "]" + t.Elem.String()
+	case SliceTypeRef:
+		if t.Elem == nil {
+			return prefix + "[]any"
+		}
+		return prefix + "[]" + t.Elem.String()
+	default:
+		return prefix + t.Name
+	}
 }
 
 func (t TypeRef) GoString(ctx Ctx) string {
+	prefix := ""
+	if t.IsPtr {
+		prefix = "*"
+	}
+
+	switch t.Kind {
+	case ArrayTypeRef:
+		if t.Elem == nil {
+			return prefix + "[" + strconv.Itoa(t.Len) + "]any"
+		}
+		return prefix + "[" + strconv.Itoa(t.Len) + "]" + t.Elem.GoString(ctx)
+	case SliceTypeRef:
+		if t.Elem == nil {
+			return prefix + "[]any"
+		}
+		return prefix + "[]" + t.Elem.GoString(ctx)
+	}
+
 	name := t.Name
 	if ctx != nil {
 		if _, declared := ctx.GetType(name); !declared {
@@ -47,10 +126,7 @@ func (t TypeRef) GoString(ctx Ctx) string {
 		name = GoTypeName(name)
 	}
 
-	if t.IsPtr {
-		return "*" + name
-	}
-	return name
+	return prefix + name
 }
 
 type FieldDef struct {

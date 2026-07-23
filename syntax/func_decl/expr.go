@@ -59,6 +59,14 @@ func (d *FuncDecl) Validate(ctx ast.Ctx) error {
 		return nil
 	}
 
+	if d.Recv.Type.Kind != ast.NamedTypeRef ||
+		d.Recv.Type.Name == "" {
+		return fmt.Errorf(
+			"receiver type %s must be a declared named type",
+			d.Recv.Type.String(),
+		)
+	}
+
 	receiverType := d.Recv.Type.Name
 	if _, ok := ctx.GetType(receiverType); !ok {
 		return fmt.Errorf("receiver type %s is not declared", receiverType)
@@ -122,6 +130,23 @@ func (d *FuncDecl) coerceReturn(
 ) (value.Type, error) {
 	if d.ReturnType == nil {
 		return result, nil
+	}
+
+	if d.ReturnType.Kind == ast.ArrayTypeRef ||
+		d.ReturnType.Kind == ast.SliceTypeRef ||
+		d.ReturnType.IsPtr {
+		if result.TypeName() == d.ReturnType.String() ||
+			(result.IsNil() &&
+				(d.ReturnType.IsPtr ||
+					d.ReturnType.Kind == ast.SliceTypeRef)) {
+			return result, nil
+		}
+		return value.NewTypeNil(), fmt.Errorf(
+			"func %s cannot return %s as %s",
+			d.Name,
+			result.TypeName(),
+			d.ReturnType.String(),
+		)
 	}
 
 	name := d.ReturnType.Name
@@ -219,6 +244,11 @@ func returnValueMatches(
 	target ast.TypeRef,
 	result value.Type,
 ) bool {
+	if target.Kind == ast.ArrayTypeRef ||
+		target.Kind == ast.SliceTypeRef {
+		return result.TypeName() == target.String() ||
+			(result.IsNil() && target.Kind == ast.SliceTypeRef)
+	}
 	if target.IsPtr {
 		return result.TypeName() == target.String()
 	}
@@ -376,7 +406,9 @@ func validateReturnGO(
 	target *ast.TypeRef,
 	returned *ReturnStmt,
 ) error {
-	if target == nil || strings.EqualFold(target.Name, "any") {
+	if target == nil ||
+		(target.Kind == ast.NamedTypeRef &&
+			strings.EqualFold(target.Name, "any")) {
 		return nil
 	}
 
@@ -391,7 +423,8 @@ func validateReturnGO(
 		)
 	}
 
-	if strings.EqualFold(target.Name, "void") {
+	if target.Kind == ast.NamedTypeRef &&
+		strings.EqualFold(target.Name, "void") {
 		return fmt.Errorf("func %s cannot return a value as void", funcName)
 	}
 
@@ -416,8 +449,11 @@ func validateReturnGO(
 	if sourceName == targetName {
 		return nil
 	}
-	if isNumericType(underlyingGoType(ctx, source)) &&
-		isNumericType(underlyingGoType(ctx, *target)) {
+	sourceUnderlying := underlyingGoType(ctx, source)
+	targetUnderlying := underlyingGoType(ctx, *target)
+	if sourceUnderlying == targetUnderlying ||
+		(isNumericType(sourceUnderlying) &&
+			isNumericType(targetUnderlying)) {
 		return nil
 	}
 
@@ -425,6 +461,9 @@ func validateReturnGO(
 }
 
 func underlyingGoType(ctx ast.Ctx, ref ast.TypeRef) string {
+	if ref.Kind != ast.NamedTypeRef {
+		return ref.GoString(ctx)
+	}
 	if def, declared := ctx.GetType(ref.Name); declared &&
 		def.Kind == ast.AliasType {
 		return underlyingGoType(ctx, def.Underlying)
@@ -450,7 +489,7 @@ func goExprType(ctx ast.Ctx, expr ast.Expr) (ast.TypeRef, bool) {
 		ValueType(ast.Ctx) ast.TypeRef
 	}); ok {
 		valueType := typed.ValueType(ctx)
-		return valueType, valueType.Name != ""
+		return valueType, !valueType.IsZero()
 	}
 
 	if ident, ok := expr.(Ident); ok {

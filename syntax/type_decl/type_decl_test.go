@@ -1,12 +1,14 @@
 package typedecl_parser_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	map_parser "github.com/fobus89/dsl/syntax/map"
@@ -24,11 +26,39 @@ func newTypeDeclTestParser(input string) testParser {
 	literal_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
+	collection_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	typedecl_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
 	return p
+}
+
+func TestRecursiveCollectionFieldType(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		type Grid struct {
+			cells: [2][][]int = [2][][]int{{{1}, {2, 3}}, {{4}}}
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decl := exprs[0].(*typedecl_parser.TypeDecl)
+	field := decl.Def.Fields["cells"]
+	if got, want := field.Type.String(), "[2][][]int"; got != want {
+		t.Fatalf("field type = %q, want %q", got, want)
+	}
+
+	generated, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(generated, "cells [2][][]int") {
+		t.Fatalf("unexpected generated declaration:\n%s", generated)
+	}
 }
 
 func TestPointerStructFieldPrintGO(t *testing.T) {

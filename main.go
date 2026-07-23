@@ -15,6 +15,7 @@ import (
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	flow_parser "github.com/fobus89/dsl/syntax/flow"
 	forstmt_parser "github.com/fobus89/dsl/syntax/for_stmt"
@@ -55,8 +56,22 @@ func main() {
 				sum = sum + item
 			}
 		}
-	`)
 
+		let mixed = [2][][]int{
+			{{1}, {2}},
+			{{3, 4}},
+		}
+
+		for item in mixed {
+			for item2 in item {
+				for item3 in item2 {
+					
+				}
+			}
+		}
+
+		
+	`)
 	p.SetValue("id", value.NewType(12211))
 
 	slice1 := []int{11, 7}
@@ -180,6 +195,7 @@ func main() {
 	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
+	collection_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
 	ifstmt_parser.RegisterParser(p)
 	let_parser.RegisterParser(p)

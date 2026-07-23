@@ -34,6 +34,7 @@ func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
 
 	var returnType *ast.TypeRef
 	if p.Match(token.STAR) ||
+		p.Match(token.LBRACKET) ||
 		p.Match(token.IDENT) ||
 		p.CurrentToken().Type.IsType() {
 		typeRef, err := parseTypeRef(p, "return type")
@@ -139,20 +140,8 @@ func parseReturnStmt(p parser.Parser) (ast.Expr, error) {
 }
 
 func parseTypeRef(p parser.Parser, label string) (*ast.TypeRef, error) {
-	isPtr := p.MatchNext(token.STAR)
-
-	if !p.Match(token.IDENT) && !p.CurrentToken().Type.IsType() {
-		return nil, fmt.Errorf(
-			"expected %s, got %s at %d:%d",
-			label,
-			p.CurrentToken().Type,
-			p.CurrentToken().Line,
-			p.CurrentToken().Col,
-		)
-	}
-
-	tok := p.Next()
-	return &ast.TypeRef{Name: tok.Literal, IsPtr: isPtr}, nil
+	ref, err := parser.ParseTypeRef(p, label)
+	return &ref, err
 }
 
 func parseIdent(p parser.Parser, label string) (Ident, error) {

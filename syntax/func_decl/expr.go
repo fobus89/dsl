@@ -28,6 +28,7 @@ type FuncDecl struct {
 	Params     []Param
 	ReturnType *ast.TypeRef
 	Body       []Expr
+	IsComptime bool
 }
 
 func NewFuncDecl(
@@ -38,12 +39,52 @@ func NewFuncDecl(
 	returnType *ast.TypeRef,
 	body []Expr,
 ) *FuncDecl {
+	return newFuncDecl(
+		ctx,
+		recv,
+		name,
+		params,
+		returnType,
+		body,
+		false,
+	)
+}
+
+func NewComptimeFuncDecl(
+	ctx ast.Ctx,
+	recv *Param,
+	name Ident,
+	params []Param,
+	returnType *ast.TypeRef,
+	body []Expr,
+) *FuncDecl {
+	return newFuncDecl(
+		ctx,
+		recv,
+		name,
+		params,
+		returnType,
+		body,
+		true,
+	)
+}
+
+func newFuncDecl(
+	ctx ast.Ctx,
+	recv *Param,
+	name Ident,
+	params []Param,
+	returnType *ast.TypeRef,
+	body []Expr,
+	isComptime bool,
+) *FuncDecl {
 	decl := &FuncDecl{
 		Recv:       recv,
 		Name:       name,
 		Params:     params,
 		ReturnType: returnType,
 		Body:       body,
+		IsComptime: isComptime,
 	}
 
 	decl.bind(ctx)
@@ -55,7 +96,18 @@ func (d *FuncDecl) IsMethod() bool {
 }
 
 func (d *FuncDecl) Validate(ctx ast.Ctx) error {
+	if d.usesMetaTypes() && !d.IsComptime {
+		return fmt.Errorf(
+			"func %s uses meta types and must be declared comptime",
+			d.Name,
+		)
+	}
+
 	if !d.IsMethod() {
+		return nil
+	}
+
+	if d.Recv.Type.IsDirectMeta() {
 		return nil
 	}
 
@@ -73,6 +125,23 @@ func (d *FuncDecl) Validate(ctx ast.Ctx) error {
 	}
 
 	return nil
+}
+
+func (d *FuncDecl) usesMetaTypes() bool {
+	if d.Recv != nil &&
+		d.Recv.Type != nil &&
+		d.Recv.Type.IsMeta() {
+		return true
+	}
+	if d.ReturnType != nil && d.ReturnType.IsMeta() {
+		return true
+	}
+	for _, param := range d.Params {
+		if param.Type != nil && param.Type.IsMeta() {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *FuncDecl) bind(ctx ast.Ctx) {
@@ -94,10 +163,42 @@ func (d *FuncDecl) bind(ctx ast.Ctx) {
 
 		localCtx := ctx.GetLocalCtx()
 		if d.IsMethod() {
+			if d.Recv.Type.IsDirectMeta() {
+				meta, ok := args[0].Any().(ast.MetaTypeValue)
+				if !ok || !meta.Matches(d.Recv.Type.Name) {
+					actual := args[0].TypeName()
+					if ok {
+						actual = string(meta.Kind)
+					}
+					return value.NewTypeNil(), fmt.Errorf(
+						"method %s receiver expects %s, got %s",
+						d.Name,
+						d.Recv.Type.Name,
+						actual,
+					)
+				}
+			}
 			localCtx.SetValue(string(d.Recv.Name), args[0])
 		}
 		for i, param := range d.Params {
-			localCtx.SetValue(string(param.Name), args[i+receiverCount])
+			arg := args[i+receiverCount]
+			if param.Type != nil && param.Type.IsDirectMeta() {
+				meta, ok := arg.Any().(ast.MetaTypeValue)
+				if !ok || !meta.Matches(param.Type.Name) {
+					actual := arg.TypeName()
+					if ok {
+						actual = string(meta.Kind)
+					}
+					return value.NewTypeNil(), fmt.Errorf(
+						"func %s parameter %s expects %s, got %s",
+						d.Name,
+						param.Name,
+						param.Type.Name,
+						actual,
+					)
+				}
+			}
+			localCtx.SetValue(string(param.Name), arg)
 		}
 
 		for _, expr := range d.Body {
@@ -150,6 +251,23 @@ func (d *FuncDecl) coerceReturn(
 	}
 
 	name := d.ReturnType.Name
+	if ast.IsMetaTypeName(name) {
+		meta, ok := result.Any().(ast.MetaTypeValue)
+		if ok && meta.Matches(name) {
+			return result, nil
+		}
+		actual := result.TypeName()
+		if ok {
+			actual = string(meta.Kind)
+		}
+		return value.NewTypeNil(), fmt.Errorf(
+			"func %s cannot return %s as %s",
+			d.Name,
+			actual,
+			name,
+		)
+	}
+
 	if def, declared := ctx.GetType(name); declared {
 		if result.TypeName() == name {
 			return result, nil
@@ -275,6 +393,10 @@ func returnValueMatches(
 		"float32", "float64", "rune", "byte":
 		return result.IsNumber()
 	}
+	if ast.IsMetaTypeName(target.Name) {
+		meta, ok := result.Any().(ast.MetaTypeValue)
+		return ok && meta.Matches(target.Name)
+	}
 
 	return false
 }
@@ -288,6 +410,18 @@ func (*FuncDecl) Type(_ ast.Ctx) string {
 }
 
 func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
+	if d.IsComptime {
+		return "", nil
+	}
+	if d.ReturnType != nil && d.ReturnType.IsMeta() {
+		return "", metaRuntimeError(d.Name)
+	}
+	for _, param := range d.Params {
+		if param.Type != nil && param.Type.IsMeta() {
+			return "", metaRuntimeError(d.Name)
+		}
+	}
+
 	printCtx := ctx.GetLocalCtx()
 
 	if d.Recv != nil {
@@ -372,6 +506,13 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		returnType,
 		strings.Join(body, "\n"),
 	), nil
+}
+
+func metaRuntimeError(name Ident) error {
+	return fmt.Errorf(
+		"func %s uses type values and must be declared comptime",
+		name,
+	)
 }
 
 func validateReturnTree(

@@ -222,6 +222,20 @@ func Test_Lexer_CompileTime_Ident(t *testing.T) {
 	}
 }
 
+func Test_Lexer_ComptimeFunctionKeyword(t *testing.T) {
+	got := NewLexer("comptime fn inspect").Tokens()
+	expected := []token.Token{
+		token.NewToken(token.COMPTIME, "comptime"),
+		token.NewToken(token.FN, "fn"),
+		token.NewToken(token.IDENT, "inspect"),
+		token.NewToken(token.EOF, ""),
+	}
+
+	if !tokensEqual(got, expected) {
+		t.Fatalf("tokens mismatch:\n got=%#v\n want=%#v", got, expected)
+	}
+}
+
 func Test_Lexer_CompileTime_String(t *testing.T) {
 	input := `$"test"`
 	l := NewLexer(input)

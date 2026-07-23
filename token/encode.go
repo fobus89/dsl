@@ -152,6 +152,8 @@ func (t TokenType) String() string {
 		return "break"
 	case CATCH:
 		return "catch"
+	case COMPTIME:
+		return "comptime"
 	case CONST:
 		return "const"
 	case CONTINUE:

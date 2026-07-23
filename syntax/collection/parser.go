@@ -5,6 +5,7 @@ import (
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
+	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	"github.com/fobus89/dsl/token"
 )
 
@@ -22,7 +23,7 @@ func nudCollection(p parser.Parser) (ast.Expr, error) {
 		return nil, fmt.Errorf("collection literal requires an array or slice type")
 	}
 	if !p.MatchNext(token.LBRACE) {
-		return nil, expected(p, token.LBRACE)
+		return literal_parser.NewTypeLiteral(typeRef), nil
 	}
 
 	return parseCollectionBody(p, typeRef)

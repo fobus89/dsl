@@ -69,7 +69,6 @@ func main() {
 				}
 			}
 		}
-
 		
 	`)
 	p.SetValue("id", value.NewType(12211))

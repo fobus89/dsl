@@ -65,6 +65,12 @@ func (*TypeDecl) Type(ast.Ctx) string {
 
 func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	if d.Def.Kind == ast.AliasType {
+		if d.Def.Underlying.IsMeta() {
+			return "", fmt.Errorf(
+				"type %s contains compile-time type values",
+				d.Def.Name,
+			)
+		}
 		return fmt.Sprintf(
 			"type %s %s",
 			d.Def.Name,
@@ -80,6 +86,13 @@ func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 
 	fields := make([]string, 0, len(names))
 	for _, name := range names {
+		if d.Def.Fields[name].Type.IsMeta() {
+			return "", fmt.Errorf(
+				"field %s.%s contains compile-time type values",
+				d.Def.Name,
+				name,
+			)
+		}
 		fields = append(
 			fields,
 			name+" "+d.Def.Fields[name].Type.GoString(ctx),

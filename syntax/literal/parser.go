@@ -20,9 +20,28 @@ func RegisterParser(p parser.Parser) {
 	p.NudRegister(token.UNDEFIND, nudUndefinedLiteral)
 	p.NudRegister(token.STRING_LITERAL, nudStringLiteral)
 	p.NudRegister(token.IDENT, nudIdentLiteral)
+	p.NudRegister(token.TYPE, nudTypeLiteral)
+	p.NudRegister(token.STAR, nudPointerTypeLiteral)
+	token.EachType(func(kind token.TokenType) bool {
+		p.NudRegister(kind, nudTypeLiteral)
+		return true
+	})
 
 	p.NudRegister(token.STRING_FORMAT, nudStringFormatLiteral)
 	// p.LedRegister(token.STRING_FORMAT, parser.Logical, nudStringFormatLiteral)
+}
+
+func nudTypeLiteral(p parser.Parser) (ast.Expr, error) {
+	tok := p.Next()
+	return NewTypeLiteral(ast.TypeRef{Name: tok.Literal}), nil
+}
+
+func nudPointerTypeLiteral(p parser.Parser) (ast.Expr, error) {
+	ref, err := parser.ParseTypeRef(p, "pointer type")
+	if err != nil {
+		return nil, err
+	}
+	return NewTypeLiteral(ref), nil
 }
 
 func nudIntLiteral(p parser.Parser) (ast.Expr, error) {

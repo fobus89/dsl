@@ -70,6 +70,11 @@ func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		}
 
 		return value.NewType(val), nil
+	case ast.MetaTypeValue:
+		switch string(m.property) {
+		case "isptr":
+			return value.NewType(v.IsPtr), nil
+		}
 	}
 
 	return value.NewTypeNil(), nil
@@ -80,6 +85,10 @@ func (MemberExpr) Type(ctx ast.Ctx) string {
 }
 
 func (m MemberExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
+	if string(m.property) == "isptr" {
+		return ast.TypeRef{Name: "bool"}
+	}
+
 	var objectType ast.TypeRef
 
 	switch object := m.object.(type) {

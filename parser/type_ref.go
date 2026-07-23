@@ -51,7 +51,9 @@ func ParseTypeRef(p Parser, label string) (ast.TypeRef, error) {
 		return ref, nil
 	}
 
-	if !p.Match(token.IDENT) && !p.CurrentToken().Type.IsType() {
+	if !p.Match(token.IDENT) &&
+		!p.Match(token.TYPE) &&
+		!p.CurrentToken().Type.IsType() {
 		return ast.TypeRef{}, typeRefError(p, label)
 	}
 

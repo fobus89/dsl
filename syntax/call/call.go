@@ -48,7 +48,16 @@ func (c *CallExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 
 		receiverType := receiver.TypeName()
 		var ok bool
-		fn, ok = ctx.GetMethod(receiverType, name)
+		if meta, isMeta := receiver.Any().(ast.MetaTypeValue); isMeta {
+			for _, candidate := range meta.MethodReceiverTypes() {
+				if fn, ok = ctx.GetMethod(candidate, name); ok {
+					receiverType = candidate
+					break
+				}
+			}
+		} else {
+			fn, ok = ctx.GetMethod(receiverType, name)
+		}
 		if !ok {
 			return value.NewTypeNil(), fmt.Errorf(
 				"method %s not found for type %s",

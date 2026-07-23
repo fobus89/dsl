@@ -147,7 +147,25 @@ func (i Ident) Eval(ctx ast.Ctx) (value.Type, error) {
 	v, ok := ctx.GetValue(string(i))
 	{
 		if !ok {
-			return value.NewTypeNil(), fmt.Errorf("ident %s not found eval", i)
+			if def, declared := ctx.GetType(string(i)); declared {
+				return value.NewTypeWithExplicit(
+					ast.NewMetaTypeValue(
+						ast.TypeRef{Name: string(i)},
+						&def,
+					),
+					ast.MetaTypeName,
+				), nil
+			}
+			if _, declared := ctx.GetFunc(string(i)); declared {
+				return value.NewTypeWithExplicit(
+					ast.NewFuncMetaTypeValue(string(i)),
+					ast.MetaTypeName,
+				), nil
+			}
+			return value.NewTypeNil(), fmt.Errorf(
+				"ident %s not found eval",
+				i,
+			)
 		}
 	}
 
@@ -160,6 +178,42 @@ func (Ident) Type(ctx ast.Ctx) string {
 
 func (i Ident) PrintGO(ast.Ctx) (string, error) {
 	return string(i), nil
+}
+
+type TypeLiteral struct {
+	Ref ast.TypeRef
+}
+
+func NewTypeLiteral(ref ast.TypeRef) TypeLiteral {
+	return TypeLiteral{Ref: ref}
+}
+
+func (t TypeLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
+	if def, declared := ctx.GetType(t.Ref.Name); declared {
+		return value.NewTypeWithExplicit(
+			ast.NewMetaTypeValue(t.Ref, &def),
+			ast.MetaTypeName,
+		), nil
+	}
+	return value.NewTypeWithExplicit(
+		ast.NewMetaTypeValue(t.Ref, nil),
+		ast.MetaTypeName,
+	), nil
+}
+
+func (TypeLiteral) Type(ast.Ctx) string {
+	return ast.MetaTypeName
+}
+
+func (TypeLiteral) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: ast.MetaTypeName}
+}
+
+func (t TypeLiteral) PrintGO(ast.Ctx) (string, error) {
+	return "", fmt.Errorf(
+		"type value %s exists only at compile time",
+		t.Ref.String(),
+	)
 }
 
 type FormatStringExpr struct {

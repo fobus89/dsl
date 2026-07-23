@@ -11,10 +11,26 @@ import (
 
 func RegisterParser(p parser.Parser) {
 	p.StmtRegister(token.FN, parseFuncDecl)
+	p.StmtRegister(token.COMPTIME, parseComptimeFuncDecl)
 	p.StmtRegister(token.RETURN, parseReturnStmt)
 }
 
 func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
+	return parseFuncDeclWithMode(p, false)
+}
+
+func parseComptimeFuncDecl(p parser.Parser) (ast.Expr, error) {
+	p.Next() // skip comptime
+	if !p.Match(token.FN) {
+		return nil, expected(p, token.FN)
+	}
+	return parseFuncDeclWithMode(p, true)
+}
+
+func parseFuncDeclWithMode(
+	p parser.Parser,
+	isComptime bool,
+) (ast.Expr, error) {
 	p.Next() // skip fn
 
 	recv, err := parseReceiver(p)
@@ -35,6 +51,7 @@ func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
 	var returnType *ast.TypeRef
 	if p.Match(token.STAR) ||
 		p.Match(token.LBRACKET) ||
+		p.Match(token.TYPE) ||
 		p.Match(token.IDENT) ||
 		p.CurrentToken().Type.IsType() {
 		typeRef, err := parseTypeRef(p, "return type")
@@ -62,7 +79,24 @@ func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
 		p.MatchNext(token.SEMICOLON)
 	}
 
-	return NewFuncDecl(p.Ctx(), recv, name, params, returnType, body), nil
+	if isComptime {
+		return NewComptimeFuncDecl(
+			p.Ctx(),
+			recv,
+			name,
+			params,
+			returnType,
+			body,
+		), nil
+	}
+	return NewFuncDecl(
+		p.Ctx(),
+		recv,
+		name,
+		params,
+		returnType,
+		body,
+	), nil
 }
 
 func parseReceiver(p parser.Parser) (*Param, error) {

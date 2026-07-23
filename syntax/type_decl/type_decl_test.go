@@ -47,7 +47,7 @@ func TestPointerStructFieldPrintGO(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *TypeDecl, got %T", exprs[0])
 	}
-	if got := decl.Def.Fields["name"]; got != (ast.TypeRef{
+	if got := decl.Def.Fields["name"].Type; got != (ast.TypeRef{
 		Name:  "String",
 		IsPtr: true,
 	}) {
@@ -59,6 +59,45 @@ func TestPointerStructFieldPrintGO(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "type User struct {\n\tname *string\n}"
+	if got != want {
+		t.Fatalf("PrintGO() = %q, want %q", got, want)
+	}
+}
+
+func TestStructFieldDefaultValue(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		type User struct {
+			name: *string = "some str"
+		}
+		u = User {}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := exprs[1].Eval(p.Ctx()); err != nil {
+		t.Fatal(err)
+	}
+
+	user, ok := p.Ctx().GetValue("u")
+	if !ok {
+		t.Fatal("expected u in context")
+	}
+	name, ok := user.Field("name")
+	if !ok {
+		t.Fatal("expected default name field")
+	}
+	if got := name.UnsafeCastString(); got != "some str" {
+		t.Fatalf("name = %q, want %q", got, "some str")
+	}
+
+	got, err := exprs[1].PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `u := User{name: new("some str")}`
 	if got != want {
 		t.Fatalf("PrintGO() = %q, want %q", got, want)
 	}

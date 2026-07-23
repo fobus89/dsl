@@ -25,7 +25,7 @@ func parseTypeDecl(p parser.Parser) (ast.Expr, error) {
 	def := ast.TypeDef{
 		Name:   string(name),
 		Kind:   ast.AliasType,
-		Fields: map[string]ast.TypeRef{},
+		Fields: map[string]ast.FieldDef{},
 	}
 
 	if p.MatchNext(token.Struct) {
@@ -48,12 +48,12 @@ func parseTypeDecl(p parser.Parser) (ast.Expr, error) {
 	return NewTypeDecl(p.Ctx(), def), nil
 }
 
-func parseStructFields(p parser.Parser) (map[string]ast.TypeRef, error) {
+func parseStructFields(p parser.Parser) (map[string]ast.FieldDef, error) {
 	if !p.MatchNext(token.LBRACE) {
 		return nil, expected(p, token.LBRACE)
 	}
 
-	fields := map[string]ast.TypeRef{}
+	fields := map[string]ast.FieldDef{}
 	for !p.MatchNext(token.RBRACE) {
 		name, err := parseIdent(p, "field name")
 		if err != nil {
@@ -71,7 +71,18 @@ func parseStructFields(p parser.Parser) (map[string]ast.TypeRef, error) {
 		if err != nil {
 			return nil, err
 		}
-		fields[string(name)] = fieldType
+
+		var defaultValue ast.Expr
+		if p.MatchNext(token.EQ) {
+			defaultValue, err = p.ParseExpr(parser.Lowest)
+			if err != nil {
+				return nil, err
+			}
+		}
+		fields[string(name)] = ast.FieldDef{
+			Type:    fieldType,
+			Default: defaultValue,
+		}
 
 		if p.MatchNext(token.RBRACE) {
 			break

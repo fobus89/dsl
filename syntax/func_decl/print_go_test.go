@@ -17,8 +17,8 @@ func TestPrintGORejectsMethodWithSameNameAsField(t *testing.T) {
 	ctx.SetType("User", ast.TypeDef{
 		Name: "User",
 		Kind: ast.StructType,
-		Fields: map[string]ast.TypeRef{
-			"name": {Name: "string"},
+		Fields: map[string]ast.FieldDef{
+			"name": {Type: ast.TypeRef{Name: "string"}},
 		},
 	})
 
@@ -48,8 +48,8 @@ func TestPrintGOUsesMemberTypeForStringConcatenation(t *testing.T) {
 	ctx.SetType("User", ast.TypeDef{
 		Name: "User",
 		Kind: ast.StructType,
-		Fields: map[string]ast.TypeRef{
-			"name": {Name: "string"},
+		Fields: map[string]ast.FieldDef{
+			"name": {Type: ast.TypeRef{Name: "string"}},
 		},
 	})
 

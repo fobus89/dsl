@@ -44,11 +44,16 @@ func (t TypeRef) GoString() string {
 	return GoTypeName(t.Name)
 }
 
+type FieldDef struct {
+	Type    TypeRef
+	Default Expr
+}
+
 type TypeDef struct {
 	Name       string
 	Kind       TypeKind
 	Underlying TypeRef
-	Fields     map[string]TypeRef
+	Fields     map[string]FieldDef
 }
 
 type Ctx interface {

@@ -82,7 +82,7 @@ func (d *TypeDecl) PrintGO(ast.Ctx) (string, error) {
 	for _, name := range names {
 		fields = append(
 			fields,
-			name+" "+d.Def.Fields[name].GoString(),
+			name+" "+d.Def.Fields[name].Type.GoString(),
 		)
 	}
 
@@ -117,9 +117,9 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 		return value.NewTypeNil(), fmt.Errorf("type %s is not a struct", typeName)
 	}
 
-	result := make(map[string]value.Type, len(s.Fields))
+	result := make(map[string]value.Type, len(def.Fields))
 	for _, field := range s.Fields {
-		fieldType, ok := def.Fields[field.Name]
+		fieldDef, ok := def.Fields[field.Name]
 		if !ok {
 			return value.NewTypeNil(), fmt.Errorf(
 				"field %s does not exist on type %s",
@@ -128,21 +128,63 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 			)
 		}
 
-		evaluated, err := field.Value.Eval(ctx)
+		evaluated, err := evalStructField(ctx, fieldDef, field.Value)
 		if err != nil {
 			return value.NewTypeNil(), err
-		}
-		if _, declared := ctx.GetType(fieldType.Name); declared &&
-			evaluated.TypeName() != fieldType.Name {
-			evaluated = value.NewTypeWithExplicit(
-				evaluated.Any(),
-				fieldType.Name,
-			)
 		}
 		result[field.Name] = evaluated
 	}
 
+	names := make([]string, 0, len(def.Fields))
+	for name := range def.Fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		if _, initialized := result[name]; initialized {
+			continue
+		}
+
+		fieldDef := def.Fields[name]
+		if fieldDef.Default == nil {
+			continue
+		}
+
+		evaluated, err := evalStructField(
+			ctx,
+			fieldDef,
+			fieldDef.Default,
+		)
+		if err != nil {
+			return value.NewTypeNil(), err
+		}
+		result[name] = evaluated
+	}
+
 	return value.NewStructType(result, typeName), nil
+}
+
+func evalStructField(
+	ctx ast.Ctx,
+	fieldDef ast.FieldDef,
+	expr ast.Expr,
+) (value.Type, error) {
+	evaluated, err := expr.Eval(ctx)
+	if err != nil {
+		return value.NewTypeNil(), err
+	}
+
+	fieldType := fieldDef.Type
+	if _, declared := ctx.GetType(fieldType.Name); declared &&
+		evaluated.TypeName() != fieldType.Name {
+		evaluated = value.NewTypeWithExplicit(
+			evaluated.Any(),
+			fieldType.Name,
+		)
+	}
+
+	return evaluated, nil
 }
 
 func (*StructLiteral) Type(ast.Ctx) string {
@@ -150,17 +192,77 @@ func (*StructLiteral) Type(ast.Ctx) string {
 }
 
 func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
-	fields := make([]string, 0, len(s.Fields))
+	typeName := string(s.TypeName)
+	def, ok := ctx.GetType(typeName)
+	if !ok {
+		return "", fmt.Errorf("type %s not found", typeName)
+	}
+
+	fields := make([]string, 0, len(def.Fields))
+	initialized := make(map[string]struct{}, len(s.Fields))
 	for _, field := range s.Fields {
+		fieldDef, ok := def.Fields[field.Name]
+		if !ok {
+			return "", fmt.Errorf(
+				"field %s does not exist on type %s",
+				field.Name,
+				typeName,
+			)
+		}
+
 		printed, err := field.Value.PrintGO(ctx)
 		if err != nil {
 			return "", err
 		}
 		fields = append(
 			fields,
-			field.Name+": "+printed,
+			field.Name+": "+
+				printFieldValue(fieldDef.Type, field.Value, printed),
+		)
+		initialized[field.Name] = struct{}{}
+	}
+
+	names := make([]string, 0, len(def.Fields))
+	for name := range def.Fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		if _, exists := initialized[name]; exists {
+			continue
+		}
+
+		fieldDef := def.Fields[name]
+		if fieldDef.Default == nil {
+			continue
+		}
+
+		printed, err := fieldDef.Default.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		fields = append(
+			fields,
+			name+": "+
+				printFieldValue(fieldDef.Type, fieldDef.Default, printed),
 		)
 	}
 
-	return string(s.TypeName) + "{" + strings.Join(fields, ", ") + "}", nil
+	return typeName + "{" + strings.Join(fields, ", ") + "}", nil
+}
+
+func printFieldValue(
+	fieldType ast.TypeRef,
+	expr ast.Expr,
+	printed string,
+) string {
+	if !fieldType.IsPtr {
+		return printed
+	}
+	if _, isNil := expr.(literal_parser.Nil); isNil {
+		return "nil"
+	}
+
+	return "new(" + printed + ")"
 }

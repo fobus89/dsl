@@ -83,7 +83,7 @@ func (m MemberExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
 		return ast.TypeRef{}
 	}
 
-	return def.Fields[string(m.property)]
+	return def.Fields[string(m.property)].Type
 }
 
 func (m MemberExpr) PrintGO(ctx ast.Ctx) (string, error) {

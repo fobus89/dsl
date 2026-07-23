@@ -29,8 +29,9 @@ import (
 
 func main() {
 	p := parser.NewParser(`
-		type User struct { name: *string }
+		type User struct { name: *string = "hello" }
 		fn (u: *User) Name() String { return u.name + (2121 * 2 /2 * (1+22)) }
+		u = User{}
 	`)
 
 	p.SetValue("id", value.NewType(12211))

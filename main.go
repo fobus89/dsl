@@ -16,49 +16,53 @@ import (
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
+	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	map_parser "github.com/fobus89/dsl/syntax/map"
 	member_parser "github.com/fobus89/dsl/syntax/member"
 	select_parser "github.com/fobus89/dsl/syntax/select"
+	typedecl_parser "github.com/fobus89/dsl/syntax/type_decl"
 	unary_parser "github.com/fobus89/dsl/syntax/unary"
 	"github.com/fobus89/dsl/value"
 )
 
 func main() {
-
 	p := parser.NewParser(`
-		somevar = {
-			id: 2,
-			a:{
-				id: "a.id"
-			},
-			b:3,
-			username:"Maxime_Nienow",
-			email:"Sincere@april.biz"
-		}
+			result = json(get("https://jsonplaceholder.typicode.com/todos"))
+			
+		  stringify(
+						select *, 12+22 + id as aaa from result where completed and userId == 9
+		)
+			
 
-		users = select 
-			*
-		from json(get("https://jsonplaceholder.typicode.com/users/"))
-		where id > -1
 
-	  	out = somevar any users
-		r = 1
-		stringify(out.asd || r)
-		r
-		q= null || undefined || -0
-		q
-		stringify((users || false))
-
-		len(users)
 	`)
+	p.SetValue("id", value.NewType(12211))
 
 	slice1 := []int{11, 7}
 
 	slices.Reverse(slice1)
 	p.SetValue("testarray1", value.NewType(slice1))
 	p.SetValue("testarray2", value.NewType([]int{4, 2, 3, 7, 5, 6, 1, 22}))
+
+	p.SetFunc("get_template", func(vals ...value.Type) (value.Type, error) {
+		if len(vals) != 1 {
+			return value.NewTypeNil(), fmt.Errorf("len() expects exactly 1 argument, got %d", len(vals))
+		}
+
+		templ := value.NewType(map[string]any{
+			"templ_id":  vals[0].Any(),
+			"fio":       "eshmatov toshmat boltayevich",
+			"pin":       "eshmat",
+			"firstname": "eshmatov",
+			"name":      "toshmat",
+			"lastname":  "boltayevich",
+			"age":       40,
+		})
+
+		return value.NewType(templ), nil
+	})
 
 	p.SetFunc("len", func(vals ...value.Type) (value.Type, error) {
 		if len(vals) != 1 {
@@ -155,9 +159,11 @@ func main() {
 	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
+	funcdecl_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	select_parser.RegisterParser(p)
+	typedecl_parser.RegisterParser(p)
 	unary_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
 
@@ -178,4 +184,8 @@ func main() {
 			}
 		}
 	}
+
+	res, _ := p.GetValue("result")
+
+	fmt.Println(res.UnsafeCastString())
 }

@@ -1,8 +1,6 @@
 package call_parser
 
 import (
-	"fmt"
-
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
 	"github.com/fobus89/dsl/token"
@@ -30,12 +28,5 @@ func ledCall(p parser.Parser, left ast.Expr, bp parser.BindingPower) (ast.Expr, 
 		exprs = append(exprs, expr)
 	}
 
-	ident, ok := left.(Ident)
-	{
-		if !ok {
-			return nil, fmt.Errorf("ident %s not found", ident)
-		}
-	}
-
-	return NewCallExpr(ident, exprs), nil
+	return NewCallExpr(left, exprs), nil
 }

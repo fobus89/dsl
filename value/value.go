@@ -60,7 +60,9 @@ func Cast[T Number](v any) (T, bool) {
 }
 
 type Type struct {
-	value any
+	value        any
+	explicitType string
+	fields       map[string]Type
 }
 
 func NewTypeNil() Type {
@@ -75,12 +77,42 @@ func NewType(v any) Type {
 
 func NewTypeWithExplicit(v any, explicitType string) Type {
 	return Type{
-		value: v,
+		value:        v,
+		explicitType: explicitType,
+	}
+}
+
+func NewStructType(fields map[string]Type, explicitType string) Type {
+	raw := make(map[string]any, len(fields))
+	for name, field := range fields {
+		raw[name] = field.Any()
+	}
+
+	return Type{
+		value:        raw,
+		explicitType: explicitType,
+		fields:       fields,
 	}
 }
 
 func (t Type) Any() any {
 	return t.value
+}
+
+func (t Type) ExplicitType() (string, bool) {
+	return t.explicitType, t.explicitType != ""
+}
+
+func (t Type) TypeName() string {
+	if t.explicitType != "" {
+		return t.explicitType
+	}
+	return t.Typeof()
+}
+
+func (t Type) Field(name string) (Type, bool) {
+	field, ok := t.fields[name]
+	return field, ok
 }
 
 func (t Type) Map() (map[string]any, bool) {
@@ -203,6 +235,10 @@ func (t Type) IsSlice() bool {
 }
 
 func (t Type) Typeof() string {
+	if t.explicitType != "" {
+		return t.explicitType
+	}
+
 	switch t.value.(type) {
 	case uint8:
 		return "uint8"

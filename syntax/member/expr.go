@@ -22,6 +22,14 @@ func NewMemberExpr(object ast.Expr, filed Ident) *MemberExpr {
 	}
 }
 
+func (m *MemberExpr) Receiver() ast.Expr {
+	return m.object
+}
+
+func (m *MemberExpr) MethodName() string {
+	return string(m.property)
+}
+
 func (m *MemberExpr) String() string {
 	return fmt.Sprintf("%s.%s", m.object, m.property)
 }
@@ -32,6 +40,10 @@ func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		if err != nil {
 			return value.NewTypeNil(), err
 		}
+	}
+
+	if field, ok := obj.Field(string(m.property)); ok {
+		return field, nil
 	}
 
 	switch v := obj.Any().(type) {

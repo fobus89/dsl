@@ -10,24 +10,55 @@ import (
 
 type Ident = literal_parser.Ident
 
+type methodCallee interface {
+	Receiver() ast.Expr
+	MethodName() string
+}
+
 type CallExpr struct {
-	Callee Ident
+	Callee ast.Expr
 	Args   []ast.Expr
 }
 
-func NewCallExpr(callee Ident, args []ast.Expr) *CallExpr {
+func NewCallExpr(callee ast.Expr, args []ast.Expr) *CallExpr {
 	return &CallExpr{Callee: callee, Args: args}
 }
 
 func (c *CallExpr) Eval(ctx ast.Ctx) (value.Type, error) {
-	fn, ok := ctx.GetFunc(string(c.Callee))
-	{
-		if !ok {
-			return value.NewTypeNil(), fmt.Errorf("func %s not found", c.Callee)
-		}
-	}
-
 	var values []value.Type
+	var name string
+	var fn ast.Func
+
+	switch callee := c.Callee.(type) {
+	case Ident:
+		name = string(callee)
+		var ok bool
+		fn, ok = ctx.GetFunc(name)
+		if !ok {
+			return value.NewTypeNil(), fmt.Errorf("func %s not found", name)
+		}
+	case methodCallee:
+		name = callee.MethodName()
+
+		receiver, err := callee.Receiver().Eval(ctx)
+		if err != nil {
+			return value.NewTypeNil(), err
+		}
+
+		receiverType := receiver.TypeName()
+		var ok bool
+		fn, ok = ctx.GetMethod(receiverType, name)
+		if !ok {
+			return value.NewTypeNil(), fmt.Errorf(
+				"method %s not found for type %s",
+				name,
+				receiverType,
+			)
+		}
+		values = append(values, receiver)
+	default:
+		return value.NewTypeNil(), fmt.Errorf("expression %T is not callable", c.Callee)
+	}
 
 	for _, v := range c.Args {
 		val, err := v.Eval(ctx)
@@ -42,6 +73,6 @@ func (c *CallExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	return fn(values...)
 }
 
-func (_ *CallExpr) Type(_ ast.Ctx) string {
-	return "Binary"
+func (*CallExpr) Type(ast.Ctx) string {
+	return "call"
 }

@@ -104,6 +104,14 @@ func (p *parser) Parse() ([]ast.Expr, error) {
 		exprs = append(exprs, stmt)
 	}
 
+	for _, expr := range exprs {
+		if validatable, ok := expr.(ast.Validatable); ok {
+			if err := validatable.Validate(p.ctx); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return exprs, nil
 }
 

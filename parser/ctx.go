@@ -22,12 +22,14 @@ func (m MapType[T, E]) Set(key T, val E) {
 	m[key] = val
 }
 
-type functype = func(...value.Type) (value.Type, error)
+type functype = ast.Func
 
 type scope struct {
 	parent    *scope
 	values    MapType[string, value.Type]
 	functions MapType[string, functype]
+	types     MapType[string, ast.TypeDef]
+	methods   MapType[string, MapType[string, functype]]
 }
 
 func NewCtxWithParent(parent *scope) *scope {
@@ -35,6 +37,8 @@ func NewCtxWithParent(parent *scope) *scope {
 		parent:    parent,
 		values:    MapType[string, value.Type]{},
 		functions: MapType[string, functype]{},
+		types:     MapType[string, ast.TypeDef]{},
+		methods:   MapType[string, MapType[string, functype]]{},
 	}
 }
 
@@ -73,6 +77,49 @@ func (s *scope) GetFunc(key string) (functype, bool) {
 		if ok {
 			return v, true
 		}
+	}
+
+	if s.parent != nil {
+		return s.parent.GetFunc(key)
+	}
+
+	return nil, false
+}
+
+func (s *scope) SetType(key string, def ast.TypeDef) {
+	s.types.Set(key, def)
+}
+
+func (s *scope) GetType(key string) (ast.TypeDef, bool) {
+	if def, ok := s.types.Get(key); ok {
+		return def, true
+	}
+
+	if s.parent != nil {
+		return s.parent.GetType(key)
+	}
+
+	return ast.TypeDef{}, false
+}
+
+func (s *scope) SetMethod(typeName, methodName string, fn functype) {
+	typeMethods, ok := s.methods.Get(typeName)
+	if !ok {
+		typeMethods = MapType[string, functype]{}
+		s.methods.Set(typeName, typeMethods)
+	}
+	typeMethods.Set(methodName, fn)
+}
+
+func (s *scope) GetMethod(typeName, methodName string) (functype, bool) {
+	if typeMethods, ok := s.methods.Get(typeName); ok {
+		if fn, ok := typeMethods.Get(methodName); ok {
+			return fn, true
+		}
+	}
+
+	if s.parent != nil {
+		return s.parent.GetMethod(typeName, methodName)
 	}
 
 	return nil, false

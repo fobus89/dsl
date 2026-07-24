@@ -154,6 +154,36 @@ func (*TypeDecl) Type(ast.Ctx) string {
 }
 
 func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
+	if len(d.Def.TypeParams) != 0 {
+		instances := ctx.GetGenericInstances(
+			"type:" + d.Def.Name,
+		)
+		declarations := make([]string, 0, len(instances))
+		for _, args := range instances {
+			if err := ast.ValidateTypeArguments(
+				ctx,
+				"type "+d.Def.Name,
+				d.Def.TypeParams,
+				args,
+			); err != nil {
+				return "", err
+			}
+			instantiated := instantiateTypeDef(d.Def, args)
+			printed, err := (&TypeDecl{
+				Def: instantiated,
+			}).PrintGO(ctx)
+			if err != nil {
+				return "", err
+			}
+			declarations = append(declarations, printed)
+		}
+		return strings.Join(declarations, "\n\n"), nil
+	}
+
+	typeName := d.Def.Name + printTypeParams(
+		ctx,
+		d.Def.TypeParams,
+	)
 	if d.Def.Kind == ast.AliasType {
 		if d.Def.Underlying.IsMeta() {
 			return "", fmt.Errorf(
@@ -163,7 +193,7 @@ func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		}
 		return fmt.Sprintf(
 			"type %s %s",
-			d.Def.Name,
+			typeName,
 			d.Def.Underlying.GoString(ctx),
 		), nil
 	}
@@ -194,16 +224,75 @@ func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 
 	return fmt.Sprintf(
 		"type %s struct {\n\t%s\n}",
-		d.Def.Name,
+		typeName,
 		strings.Join(fields, "\n\t"),
 	), nil
+}
+
+func instantiateTypeDef(
+	def ast.TypeDef,
+	args []ast.TypeRef,
+) ast.TypeDef {
+	instantiated := def
+	instantiated.Name = ast.MangleGenericName(def.Name, args)
+	instantiated.TypeParams = nil
+	instantiated.Underlying = ast.SubstituteType(
+		def.Underlying,
+		def.TypeParams,
+		args,
+	)
+	instantiated.Fields = make(
+		map[string]ast.FieldDef,
+		len(def.Fields),
+	)
+	for name, field := range def.Fields {
+		field.Type = ast.SubstituteType(
+			field.Type,
+			def.TypeParams,
+			args,
+		)
+		instantiated.Fields[name] = field
+	}
+	instantiated.Variants = append(
+		[]ast.EnumVariantDef(nil),
+		def.Variants...,
+	)
+	for index := range instantiated.Variants {
+		for field := range instantiated.Variants[index].Fields {
+			instantiated.Variants[index].Fields[field] =
+				ast.SubstituteType(
+					instantiated.Variants[index].Fields[field],
+					def.TypeParams,
+					args,
+				)
+		}
+	}
+	return instantiated
+}
+
+func printTypeParams(
+	ctx ast.Ctx,
+	params []ast.TypeParam,
+) string {
+	if len(params) == 0 {
+		return ""
+	}
+	printed := make([]string, 0, len(params))
+	for _, param := range params {
+		printed = append(
+			printed,
+			param.Name+" "+param.Constraint.GoString(ctx),
+		)
+	}
+	return "[" + strings.Join(printed, ", ") + "]"
 }
 
 func printGOEnum(ctx ast.Ctx, def ast.TypeDef) (string, error) {
 	var declarations []string
 	declarations = append(
 		declarations,
-		"type "+def.Name+" interface {\n\tis"+def.Name+"()\n}",
+		"type "+def.Name+printTypeParams(ctx, def.TypeParams)+
+			" interface {\n\tis"+def.Name+"()\n}",
 	)
 
 	for _, variant := range def.Variants {
@@ -407,11 +496,28 @@ func orderEnumStructFields(
 
 type StructLiteral struct {
 	TypeName Ident
+	TypeRef  ast.TypeRef
 	Fields   []FieldValue
 }
 
 func NewStructLiteral(typeName Ident, fields []FieldValue) *StructLiteral {
-	return &StructLiteral{TypeName: typeName, Fields: fields}
+	return NewStructLiteralRef(
+		typeName,
+		ast.TypeRef{Name: string(typeName)},
+		fields,
+	)
+}
+
+func NewStructLiteralRef(
+	typeName Ident,
+	typeRef ast.TypeRef,
+	fields []FieldValue,
+) *StructLiteral {
+	return &StructLiteral{
+		TypeName: typeName,
+		TypeRef:  typeRef,
+		Fields:   fields,
+	}
 }
 
 func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
@@ -422,6 +528,13 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 	}
 	if def.Kind != ast.StructType {
 		return value.NewTypeNil(), fmt.Errorf("type %s is not a struct", typeName)
+	}
+	if err := validateTypeArgumentCount(
+		ctx,
+		s.TypeRef,
+		def,
+	); err != nil {
+		return value.NewTypeNil(), err
 	}
 
 	result := make(map[string]value.Type, len(def.Fields))
@@ -434,6 +547,11 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 				typeName,
 			)
 		}
+		fieldDef.Type = ast.SubstituteType(
+			fieldDef.Type,
+			def.TypeParams,
+			s.TypeRef.Args,
+		)
 
 		evaluated, err := evalStructField(ctx, fieldDef, field.Value)
 		if err != nil {
@@ -457,6 +575,11 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 		if fieldDef.Default == nil {
 			continue
 		}
+		fieldDef.Type = ast.SubstituteType(
+			fieldDef.Type,
+			def.TypeParams,
+			s.TypeRef.Args,
+		)
 
 		evaluated, err := evalStructField(
 			ctx,
@@ -469,7 +592,7 @@ func (s *StructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
 		result[name] = evaluated
 	}
 
-	return value.NewStructType(result, typeName), nil
+	return value.NewStructType(result, s.TypeRef.String()), nil
 }
 
 func evalStructField(
@@ -483,6 +606,13 @@ func evalStructField(
 	}
 
 	fieldType := fieldDef.Type
+	if !structValueMatches(ctx, fieldType, evaluated) {
+		return value.NewTypeNil(), fmt.Errorf(
+			"cannot use %s as struct field type %s",
+			evaluated.TypeName(),
+			fieldType.String(),
+		)
+	}
 	if _, declared := ctx.GetType(fieldType.Name); declared &&
 		evaluated.TypeName() != fieldType.Name {
 		evaluated = value.NewTypeWithExplicit(
@@ -499,6 +629,9 @@ func (*StructLiteral) Type(ast.Ctx) string {
 }
 
 func (s *StructLiteral) ValueType(ast.Ctx) ast.TypeRef {
+	if !s.TypeRef.IsZero() {
+		return s.TypeRef
+	}
 	return ast.TypeRef{Name: string(s.TypeName)}
 }
 
@@ -507,6 +640,13 @@ func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
 	def, ok := ctx.GetType(typeName)
 	if !ok {
 		return "", fmt.Errorf("type %s not found", typeName)
+	}
+	if err := validateTypeArgumentCount(
+		ctx,
+		s.TypeRef,
+		def,
+	); err != nil {
+		return "", err
 	}
 
 	fields := make([]string, 0, len(def.Fields))
@@ -518,6 +658,21 @@ func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
 				"field %s does not exist on type %s",
 				field.Name,
 				typeName,
+			)
+		}
+		fieldDef.Type = ast.SubstituteType(
+			fieldDef.Type,
+			def.TypeParams,
+			s.TypeRef.Args,
+		)
+		if actual := structExprType(ctx, field.Value); !actual.IsZero() &&
+			!structTypesCompatible(ctx, fieldDef.Type, actual) {
+			return "", fmt.Errorf(
+				"field %s.%s expects %s, got %s",
+				typeName,
+				field.Name,
+				fieldDef.Type.String(),
+				actual.String(),
 			)
 		}
 
@@ -548,6 +703,11 @@ func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
 		if fieldDef.Default == nil {
 			continue
 		}
+		fieldDef.Type = ast.SubstituteType(
+			fieldDef.Type,
+			def.TypeParams,
+			s.TypeRef.Args,
+		)
 
 		printed, err := fieldDef.Default.PrintGO(ctx)
 		if err != nil {
@@ -560,7 +720,70 @@ func (s *StructLiteral) PrintGO(ctx ast.Ctx) (string, error) {
 		)
 	}
 
-	return typeName + "{" + strings.Join(fields, ", ") + "}", nil
+	printedType := s.TypeRef.GoString(ctx)
+	return printedType + "{" + strings.Join(fields, ", ") + "}", nil
+}
+
+func structExprType(ctx ast.Ctx, expr ast.Expr) ast.TypeRef {
+	if typed, ok := expr.(interface {
+		ValueType(ast.Ctx) ast.TypeRef
+	}); ok {
+		return typed.ValueType(ctx)
+	}
+	return ast.TypeRef{}
+}
+
+func structTypesCompatible(
+	ctx ast.Ctx,
+	expected ast.TypeRef,
+	actual ast.TypeRef,
+) bool {
+	if expected.GoString(ctx) == actual.GoString(ctx) {
+		return true
+	}
+	if def, declared := ctx.GetType(expected.Name); declared &&
+		def.Kind == ast.AliasType {
+		expected = def.Underlying
+	}
+	if def, declared := ctx.GetType(actual.Name); declared &&
+		def.Kind == ast.AliasType {
+		actual = def.Underlying
+	}
+	return enumNumericType(expected) && enumNumericType(actual)
+}
+
+func structValueMatches(
+	ctx ast.Ctx,
+	expected ast.TypeRef,
+	actual value.Type,
+) bool {
+	if expected.IsPtr {
+		expected.IsPtr = false
+	}
+	actualRef := ast.ParseTypeRef(actual.TypeName())
+	if structTypesCompatible(ctx, expected, actualRef) {
+		return true
+	}
+	switch strings.ToLower(expected.Name) {
+	case "string":
+		return actual.IsString()
+	case "bool":
+		return actual.IsBool()
+	}
+	return false
+}
+
+func validateTypeArgumentCount(
+	ctx ast.Ctx,
+	ref ast.TypeRef,
+	def ast.TypeDef,
+) error {
+	return ast.ValidateTypeArguments(
+		ctx,
+		"type "+def.Name,
+		def.TypeParams,
+		ref.Args,
+	)
 }
 
 func printFieldValue(

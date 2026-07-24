@@ -84,7 +84,68 @@ func ParseTypeRef(p Parser, label string) (ast.TypeRef, error) {
 	}
 
 	tok := p.Next()
-	return ast.TypeRef{Name: tok.Literal, IsPtr: isPtr}, nil
+	ref := ast.TypeRef{Name: tok.Literal, IsPtr: isPtr}
+	if p.MatchNext(token.LBRACKET) {
+		for !p.MatchNext(token.RBRACKET) {
+			arg, err := ParseTypeRef(p, "generic type argument")
+			if err != nil {
+				return ast.TypeRef{}, err
+			}
+			ref.Args = append(ref.Args, arg)
+			if p.MatchNext(token.RBRACKET) {
+				break
+			}
+			if !p.MatchNext(token.COMMA) {
+				return ast.TypeRef{}, fmt.Errorf(
+					"expected , in generic type arguments, got %s",
+					p.CurrentToken().Type,
+				)
+			}
+		}
+	}
+	return ref, nil
+}
+
+func ParseTypeParams(
+	p Parser,
+	label string,
+) ([]ast.TypeParam, error) {
+	if !p.MatchNext(token.LBRACKET) {
+		return nil, nil
+	}
+	var params []ast.TypeParam
+	seen := map[string]struct{}{}
+	for !p.MatchNext(token.RBRACKET) {
+		if !p.Match(token.IDENT) {
+			return nil, typeRefError(p, label+" parameter")
+		}
+		name := p.Next().Literal
+		if _, exists := seen[name]; exists {
+			return nil, fmt.Errorf(
+				"generic parameter %s declared more than once",
+				name,
+			)
+		}
+		seen[name] = struct{}{}
+		constraint, err := ParseTypeRef(p, label+" constraint")
+		if err != nil {
+			return nil, err
+		}
+		params = append(params, ast.TypeParam{
+			Name:       name,
+			Constraint: constraint,
+		})
+		if p.MatchNext(token.RBRACKET) {
+			break
+		}
+		if !p.MatchNext(token.COMMA) {
+			return nil, fmt.Errorf(
+				"expected , in generic parameters, got %s",
+				p.CurrentToken().Type,
+			)
+		}
+	}
+	return params, nil
 }
 
 func typeRefError(p Parser, label string) error {

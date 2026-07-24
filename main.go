@@ -20,6 +20,7 @@ import (
 	flow_parser "github.com/fobus89/dsl/syntax/flow"
 	forstmt_parser "github.com/fobus89/dsl/syntax/for_stmt"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
+	generic_parser "github.com/fobus89/dsl/syntax/generic"
 	ifstmt_parser "github.com/fobus89/dsl/syntax/if_stmt"
 	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
@@ -117,6 +118,8 @@ let result = match msg {
 		return p.0 + p.1
 	}
 	type Point = (int, int)
+	fn identity[T any](value: T) T { return value }
+	let value = identity[int](1)
 	`)
 
 	p.SetValue("id", value.NewType(12211))
@@ -244,6 +247,7 @@ let result = match msg {
 	call_parser.RegisterParser(p)
 	collection_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
+	generic_parser.RegisterParser(p)
 	ifstmt_parser.RegisterParser(p)
 	matchstmt_parser.RegisterParser(p)
 	let_parser.RegisterParser(p)

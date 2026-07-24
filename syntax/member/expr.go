@@ -146,7 +146,15 @@ func (m MemberExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
 		return ast.TypeRef{}
 	}
 
-	return def.Fields[string(m.property)].Type
+	field, exists := def.Fields[string(m.property)]
+	if !exists {
+		return ast.TypeRef{}
+	}
+	return ast.SubstituteType(
+		field.Type,
+		def.TypeParams,
+		objectType.Args,
+	)
 }
 
 func (m MemberExpr) PrintGO(ctx ast.Ctx) (string, error) {
@@ -245,6 +253,66 @@ func (m MemberExpr) PrintGOEnumCall(
 			enumType.Name,
 			variant.Name,
 		) + "{" + strings.Join(fields, ", ") + "})", true, nil
+}
+
+func (m MemberExpr) PrintGOGenericMethodCall(
+	ctx ast.Ctx,
+	methodArgs []ast.TypeRef,
+	args []ast.Expr,
+) (string, bool, error) {
+	receiverType := memberExprValueType(ctx, m.object)
+	def, declared := ctx.GetType(receiverType.Name)
+	if !declared {
+		return "", false, nil
+	}
+	if _, exists := ctx.GetMethod(
+		def.Name,
+		string(m.property),
+	); !exists {
+		return "", false, nil
+	}
+
+	receiver, err := m.object.PrintGO(ctx)
+	if err != nil {
+		return "", true, err
+	}
+	typeArgs := append(
+		[]ast.TypeRef{},
+		receiverType.Args...,
+	)
+	typeArgs = append(typeArgs, methodArgs...)
+	printedArgs := []string{receiver}
+	for _, arg := range args {
+		printed, err := arg.PrintGO(ctx)
+		if err != nil {
+			return "", true, err
+		}
+		printedArgs = append(printedArgs, printed)
+	}
+	return ast.MangleGenericName(
+		def.Name+"_"+string(m.property),
+		typeArgs,
+	) + "(" +
+		strings.Join(printedArgs, ", ") + ")", true, nil
+}
+
+func (m MemberExpr) GenericSignatureKey(
+	ctx ast.Ctx,
+) (string, bool) {
+	receiverType := memberExprValueType(ctx, m.object)
+	if receiverType.Name == "" {
+		return "", false
+	}
+	key := "method:" + receiverType.Name +
+		"." + string(m.property)
+	_, exists := ctx.GetGeneric(key)
+	return key, exists
+}
+
+func (m MemberExpr) GenericReceiverType(
+	ctx ast.Ctx,
+) ast.TypeRef {
+	return memberExprValueType(ctx, m.object)
 }
 
 func (m MemberExpr) printGOEnumMethodCall(

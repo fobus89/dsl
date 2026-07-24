@@ -7,6 +7,7 @@ import (
 	"github.com/fobus89/dsl/parser"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	"github.com/fobus89/dsl/token"
+	"github.com/fobus89/dsl/value"
 )
 
 func RegisterParser(p parser.Parser) {
@@ -88,6 +89,17 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 	}
 
 	if !tuplePattern {
+		if typed, ok := expr.(interface {
+			ValueType(ast.Ctx) ast.TypeRef
+		}); ok {
+			ref := typed.ValueType(p.Ctx())
+			if !ref.IsZero() {
+				p.Ctx().SetValue(
+					string(name),
+					value.NewTypeWithExplicit(nil, ref.String()),
+				)
+			}
+		}
 		return NewLetExpr(name, expr), nil
 	}
 	return NewTupleLetExpr(names, expr), nil

@@ -23,12 +23,14 @@ type Param struct {
 // FuncDecl represents both a function and a method declaration.
 // A declaration is a method when Recv is not nil.
 type FuncDecl struct {
-	Recv       *Param
-	Name       Ident
-	Params     []Param
-	ReturnType *ast.TypeRef
-	Body       []Expr
-	IsComptime bool
+	Recv        *Param
+	Name        Ident
+	Params      []Param
+	ReturnType  *ast.TypeRef
+	Body        []Expr
+	IsComptime  bool
+	TypeParams  []ast.TypeParam
+	IsMonomorph bool
 }
 
 func NewFuncDecl(
@@ -93,6 +95,15 @@ func newFuncDecl(
 
 func (d *FuncDecl) IsMethod() bool {
 	return d.Recv != nil
+}
+
+func (d *FuncDecl) RegisterGenericInfo(ctx ast.Ctx) {
+	key := "func:" + string(d.Name)
+	if d.Recv != nil {
+		key = "method:" + d.Recv.Type.Name +
+			"." + string(d.Name)
+	}
+	ctx.SetGeneric(key, d.TypeParams)
 }
 
 func (d *FuncDecl) Validate(ctx ast.Ctx) error {
@@ -252,6 +263,9 @@ func (d *FuncDecl) coerceReturn(
 	}
 
 	name := d.ReturnType.Name
+	if d.isTypeParameter(ctx, name) {
+		return result, nil
+	}
 	if ast.IsMetaTypeName(name) {
 		meta, ok := result.Any().(ast.MetaTypeValue)
 		if ok && meta.Matches(name) {
@@ -358,6 +372,29 @@ func (d *FuncDecl) coerceReturn(
 	)
 }
 
+func (d *FuncDecl) isTypeParameter(
+	ctx ast.Ctx,
+	name string,
+) bool {
+	for _, param := range d.TypeParams {
+		if param.Name == name {
+			return true
+		}
+	}
+	if d.Recv != nil {
+		if def, declared := ctx.GetType(
+			d.Recv.Type.Name,
+		); declared {
+			for _, param := range def.TypeParams {
+				if param.Name == name {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func returnValueMatches(
 	ctx ast.Ctx,
 	target ast.TypeRef,
@@ -412,6 +449,11 @@ func (*FuncDecl) Type(_ ast.Ctx) string {
 }
 
 func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
+	if !d.IsMonomorph {
+		if printed, handled, err := d.printMonomorphs(ctx); handled {
+			return printed, err
+		}
+	}
 	if d.IsComptime {
 		return "", nil
 	}
@@ -476,6 +518,10 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 
 	receiver := ""
 	goName := string(d.Name)
+	printedTypeParams := printFuncTypeParams(
+		ctx,
+		d.TypeParams,
+	)
 	if d.Recv != nil {
 		receiverName, err := d.Recv.Name.PrintGO(ctx)
 		if err != nil {
@@ -489,6 +535,22 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 				params...,
 			)
 			goName = d.Recv.Type.Name + "_" + string(d.Name)
+		} else if len(d.TypeParams) != 0 {
+			params = append(
+				[]string{receiverName + " " + receiverType},
+				params...,
+			)
+			goName = d.Recv.Type.Name + "_" + string(d.Name)
+			receiverDef, _ := ctx.GetType(d.Recv.Type.Name)
+			combined := append(
+				[]ast.TypeParam{},
+				receiverDef.TypeParams...,
+			)
+			combined = append(combined, d.TypeParams...)
+			printedTypeParams = printFuncTypeParams(
+				ctx,
+				combined,
+			)
 		} else {
 			receiver = fmt.Sprintf(
 				"(%s %s) ",
@@ -524,11 +586,173 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	return fmt.Sprintf(
 		"func %s%s(%s)%s {\n%s\n}",
 		receiver,
-		goName,
+		goName+printedTypeParams,
 		strings.Join(params, ", "),
 		returnType,
 		strings.Join(body, "\n"),
 	), nil
+}
+
+func (d *FuncDecl) printMonomorphs(
+	ctx ast.Ctx,
+) (string, bool, error) {
+	if d.Recv == nil && len(d.TypeParams) != 0 {
+		key := "func:" + string(d.Name)
+		instances := ctx.GetGenericInstances(key)
+		printed := make([]string, 0, len(instances))
+		for _, args := range instances {
+			if err := ast.ValidateTypeArguments(
+				ctx,
+				"func "+string(d.Name),
+				d.TypeParams,
+				args,
+			); err != nil {
+				return "", true, err
+			}
+			clone := d.instantiateFunction(
+				d.TypeParams,
+				args,
+			)
+			clone.Name = literal_parser.NewIdentExpr(
+				ast.MangleGenericName(
+					string(d.Name),
+					args,
+				),
+			)
+			code, err := clone.PrintGO(ctx)
+			if err != nil {
+				return "", true, err
+			}
+			printed = append(printed, code)
+		}
+		return strings.Join(printed, "\n\n"), true, nil
+	}
+
+	if d.Recv == nil {
+		return "", false, nil
+	}
+	def, declared := ctx.GetType(d.Recv.Type.Name)
+	if !declared || len(def.TypeParams) == 0 &&
+		len(d.TypeParams) == 0 {
+		return "", false, nil
+	}
+
+	if len(d.TypeParams) == 0 {
+		instances := ctx.GetGenericInstances(
+			"type:" + def.Name,
+		)
+		printed := make([]string, 0, len(instances))
+		for _, args := range instances {
+			clone := d.instantiateFunction(
+				def.TypeParams,
+				args,
+			)
+			code, err := clone.PrintGO(ctx)
+			if err != nil {
+				return "", true, err
+			}
+			printed = append(printed, code)
+		}
+		return strings.Join(printed, "\n\n"), true, nil
+	}
+
+	params := append(
+		[]ast.TypeParam{},
+		def.TypeParams...,
+	)
+	params = append(params, d.TypeParams...)
+	instances := ctx.GetGenericInstances(
+		"method:" + def.Name + "." + string(d.Name),
+	)
+	printed := make([]string, 0, len(instances))
+	for _, args := range instances {
+		if err := ast.ValidateTypeArguments(
+			ctx,
+			"method "+def.Name+"."+string(d.Name),
+			params,
+			args,
+		); err != nil {
+			return "", true, err
+		}
+		clone := d.instantiateFunction(params, args)
+		receiver := *clone.Recv
+		clone.Recv = nil
+		clone.Params = append(
+			[]Param{receiver},
+			clone.Params...,
+		)
+		clone.Name = literal_parser.NewIdentExpr(
+			ast.MangleGenericName(
+				def.Name+"_"+string(d.Name),
+				args,
+			),
+		)
+		code, err := clone.PrintGO(ctx)
+		if err != nil {
+			return "", true, err
+		}
+		printed = append(printed, code)
+	}
+	return strings.Join(printed, "\n\n"), true, nil
+}
+
+func (d *FuncDecl) instantiateFunction(
+	params []ast.TypeParam,
+	args []ast.TypeRef,
+) *FuncDecl {
+	clone := *d
+	clone.IsMonomorph = true
+	clone.TypeParams = nil
+	if d.Recv != nil {
+		receiver := *d.Recv
+		if receiver.Type != nil {
+			ref := ast.SubstituteType(
+				*receiver.Type,
+				params,
+				args,
+			)
+			receiver.Type = &ref
+		}
+		clone.Recv = &receiver
+	}
+	clone.Params = append([]Param(nil), d.Params...)
+	for index := range clone.Params {
+		if clone.Params[index].Type == nil {
+			continue
+		}
+		ref := ast.SubstituteType(
+			*clone.Params[index].Type,
+			params,
+			args,
+		)
+		clone.Params[index].Type = &ref
+	}
+	if d.ReturnType != nil {
+		ref := ast.SubstituteType(
+			*d.ReturnType,
+			params,
+			args,
+		)
+		clone.ReturnType = &ref
+	}
+	return &clone
+}
+
+func printFuncTypeParams(
+	ctx ast.Ctx,
+	params []ast.TypeParam,
+) string {
+	if len(params) == 0 {
+		return ""
+	}
+	printed := make([]string, 0, len(params))
+	for _, param := range params {
+		printed = append(
+			printed,
+			param.Name+" "+param.Constraint.GoString(ctx),
+		)
+	}
+	return "[" + strings.Join(printed, ", ") + "]"
 }
 
 func metaRuntimeError(name Ident) error {

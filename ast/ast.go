@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -32,7 +33,13 @@ type TypeRef struct {
 	Kind  TypeRefKind
 	Elem  *TypeRef
 	Elems []TypeRef
+	Args  []TypeRef
 	Len   int
+}
+
+type TypeParam struct {
+	Name       string
+	Constraint TypeRef
 }
 
 const (
@@ -316,6 +323,17 @@ func parseTypeRefString(name string) (TypeRef, string) {
 	}
 
 	ref.Name = name
+	if start := strings.IndexByte(name, '['); start > 0 &&
+		strings.HasSuffix(name, "]") {
+		ref.Name = name[:start]
+		inner := name[start+1 : len(name)-1]
+		for _, part := range splitTupleType(inner) {
+			ref.Args = append(
+				ref.Args,
+				ParseTypeRef(strings.TrimSpace(part)),
+			)
+		}
+	}
 	return ref, ""
 }
 
@@ -334,6 +352,11 @@ func (t TypeRef) IsMeta() bool {
 			}
 		}
 		return false
+	}
+	for _, arg := range t.Args {
+		if arg.IsMeta() {
+			return true
+		}
 	}
 	if t.Kind == NamedTypeRef {
 		return IsMetaTypeName(t.Name)
@@ -369,7 +392,15 @@ func (t TypeRef) String() string {
 		}
 		return prefix + "(" + strings.Join(elems, ",") + ")"
 	default:
-		return prefix + t.Name
+		name := prefix + t.Name
+		if len(t.Args) == 0 {
+			return name
+		}
+		args := make([]string, 0, len(t.Args))
+		for _, arg := range t.Args {
+			args = append(args, arg.String())
+		}
+		return name + "[" + strings.Join(args, ",") + "]"
 	}
 }
 
@@ -411,6 +442,22 @@ func (t TypeRef) GoString(ctx Ctx) string {
 		name = GoTypeName(name)
 	}
 
+	if len(t.Args) != 0 {
+		if ctx != nil {
+			if def, declared := ctx.GetType(t.Name); declared &&
+				len(def.TypeParams) != 0 {
+				return prefix + MangleGenericName(
+					t.Name,
+					t.Args,
+				)
+			}
+		}
+		args := make([]string, 0, len(t.Args))
+		for _, arg := range t.Args {
+			args = append(args, arg.GoString(ctx))
+		}
+		name += "[" + strings.Join(args, ", ") + "]"
+	}
 	return prefix + name
 }
 
@@ -431,6 +478,7 @@ type TypeDef struct {
 	Underlying TypeRef
 	Fields     map[string]FieldDef
 	Variants   []EnumVariantDef
+	TypeParams []TypeParam
 }
 
 type EnumValue struct {
@@ -447,6 +495,57 @@ func EnumVariantGoName(typeName, variant string) string {
 	return typeName + variant
 }
 
+func SubstituteType(
+	ref TypeRef,
+	params []TypeParam,
+	args []TypeRef,
+) TypeRef {
+	substitutions := make(map[string]TypeRef, len(params))
+	for index, param := range params {
+		if index < len(args) {
+			substitutions[param.Name] = args[index]
+		}
+	}
+	return substituteType(ref, substitutions)
+}
+
+func substituteType(
+	ref TypeRef,
+	substitutions map[string]TypeRef,
+) TypeRef {
+	if ref.Kind == NamedTypeRef && len(ref.Args) == 0 {
+		if replacement, ok := substitutions[ref.Name]; ok {
+			replacement.IsPtr = ref.IsPtr || replacement.IsPtr
+			return replacement
+		}
+	}
+	if ref.Elem != nil {
+		elem := substituteType(*ref.Elem, substitutions)
+		ref.Elem = &elem
+	}
+	if len(ref.Elems) != 0 {
+		elems := make([]TypeRef, len(ref.Elems))
+		for index := range ref.Elems {
+			elems[index] = substituteType(
+				ref.Elems[index],
+				substitutions,
+			)
+		}
+		ref.Elems = elems
+	}
+	if len(ref.Args) != 0 {
+		args := make([]TypeRef, len(ref.Args))
+		for index := range ref.Args {
+			args[index] = substituteType(
+				ref.Args[index],
+				substitutions,
+			)
+		}
+		ref.Args = args
+	}
+	return ref
+}
+
 type Ctx interface {
 	SetValue(key string, val value.Type)
 	GetValue(key string) (value.Type, bool)
@@ -456,7 +555,141 @@ type Ctx interface {
 	GetType(key string) (TypeDef, bool)
 	SetMethod(typeName, methodName string, fn Func)
 	GetMethod(typeName, methodName string) (Func, bool)
+	SetGeneric(key string, params []TypeParam)
+	GetGeneric(key string) ([]TypeParam, bool)
+	RegisterGenericInstance(key string, args []TypeRef)
+	GetGenericInstances(key string) [][]TypeRef
 	GetLocalCtx() Ctx
+}
+
+func MangleGenericName(name string, args []TypeRef) string {
+	if len(args) == 0 {
+		return name
+	}
+	parts := []string{name}
+	for _, arg := range args {
+		parts = append(parts, mangleTypeRef(arg))
+	}
+	return strings.Join(parts, "_")
+}
+
+func mangleTypeRef(ref TypeRef) string {
+	var name string
+	switch ref.Kind {
+	case ArrayTypeRef:
+		name = "array" + strconv.Itoa(ref.Len)
+		if ref.Elem != nil {
+			name += "_" + mangleTypeRef(*ref.Elem)
+		}
+	case SliceTypeRef:
+		name = "slice"
+		if ref.Elem != nil {
+			name += "_" + mangleTypeRef(*ref.Elem)
+		}
+	case TupleTypeRef:
+		parts := []string{"tuple"}
+		for _, elem := range ref.Elems {
+			parts = append(parts, mangleTypeRef(elem))
+		}
+		name = strings.Join(parts, "_")
+	default:
+		name = ref.Name
+		if len(ref.Args) != 0 {
+			name = MangleGenericName(name, ref.Args)
+		}
+	}
+	if ref.IsPtr {
+		name = "ptr_" + name
+	}
+	replacer := strings.NewReplacer(
+		"*", "ptr_",
+		"[", "_",
+		"]", "",
+		",", "_",
+		" ", "",
+		".", "_",
+	)
+	return replacer.Replace(name)
+}
+
+func ValidateTypeArguments(
+	ctx Ctx,
+	owner string,
+	params []TypeParam,
+	args []TypeRef,
+) error {
+	if len(args) != len(params) {
+		return fmt.Errorf(
+			"%s expects %d type arguments, got %d",
+			owner,
+			len(params),
+			len(args),
+		)
+	}
+	for index, param := range params {
+		if !typeSatisfiesConstraint(
+			ctx,
+			args[index],
+			param.Constraint,
+		) {
+			return fmt.Errorf(
+				"type argument %s does not satisfy %s for %s",
+				args[index].String(),
+				param.Constraint.String(),
+				param.Name,
+			)
+		}
+	}
+	return nil
+}
+
+func typeSatisfiesConstraint(
+	ctx Ctx,
+	arg TypeRef,
+	constraint TypeRef,
+) bool {
+	switch strings.ToLower(constraint.Name) {
+	case "any":
+		return true
+	case "comparable":
+		return isComparableTypeRef(ctx, arg)
+	}
+	return arg.GoString(ctx) == constraint.GoString(ctx)
+}
+
+func isComparableTypeRef(ctx Ctx, ref TypeRef) bool {
+	if ref.IsPtr {
+		return true
+	}
+	switch ref.Kind {
+	case SliceTypeRef:
+		return false
+	case ArrayTypeRef:
+		return ref.Elem != nil &&
+			isComparableTypeRef(ctx, *ref.Elem)
+	case TupleTypeRef:
+		for _, elem := range ref.Elems {
+			if !isComparableTypeRef(ctx, elem) {
+				return false
+			}
+		}
+		return true
+	}
+	if def, declared := ctx.GetType(ref.Name); declared {
+		if def.Kind == AliasType {
+			return isComparableTypeRef(ctx, def.Underlying)
+		}
+		for _, field := range def.Fields {
+			if !isComparableTypeRef(ctx, field.Type) {
+				return false
+			}
+		}
+	}
+	switch strings.ToLower(ref.Name) {
+	case "map", "slice", "func":
+		return false
+	}
+	return true
 }
 
 type Expr interface {

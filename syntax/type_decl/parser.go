@@ -22,6 +22,13 @@ func parseEnumDecl(p parser.Parser) (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+	typeParams, err := parser.ParseTypeParams(
+		p,
+		"enum generic",
+	)
+	if err != nil {
+		return nil, err
+	}
 	if !p.MatchNext(token.LBRACE) {
 		return nil, expected(p, token.LBRACE)
 	}
@@ -31,6 +38,7 @@ func parseEnumDecl(p parser.Parser) (ast.Expr, error) {
 		Kind:       ast.EnumType,
 		Underlying: ast.TypeRef{Name: token.Enum.String()},
 		Fields:     map[string]ast.FieldDef{},
+		TypeParams: typeParams,
 	}
 	seen := map[string]struct{}{}
 
@@ -129,11 +137,19 @@ func parseTypeDecl(p parser.Parser) (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+	typeParams, err := parser.ParseTypeParams(
+		p,
+		"type generic",
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	def := ast.TypeDef{
-		Name:   string(name),
-		Kind:   ast.AliasType,
-		Fields: map[string]ast.FieldDef{},
+		Name:       string(name),
+		Kind:       ast.AliasType,
+		Fields:     map[string]ast.FieldDef{},
+		TypeParams: typeParams,
 	}
 
 	if p.MatchNext(token.Struct) {
@@ -217,8 +233,18 @@ func parseStructLiteral(
 		}
 	}
 
-	typeName, ok := left.(Ident)
-	if !ok {
+	var (
+		typeName Ident
+		typeRef  ast.TypeRef
+	)
+	switch target := left.(type) {
+	case Ident:
+		typeName = target
+		typeRef = ast.TypeRef{Name: string(target)}
+	case interface{ TypeReference() ast.TypeRef }:
+		typeRef = target.TypeReference()
+		typeName = literal_parser.NewIdentExpr(typeRef.Name)
+	default:
 		return nil, fmt.Errorf(
 			"struct literal requires a type name, got %T",
 			left,
@@ -231,7 +257,7 @@ func parseStructLiteral(
 	if err != nil {
 		return nil, err
 	}
-	return NewStructLiteral(typeName, fields), nil
+	return NewStructLiteralRef(typeName, typeRef, fields), nil
 }
 
 func parseEnumStructLiteral(

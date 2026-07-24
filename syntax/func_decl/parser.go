@@ -42,6 +42,13 @@ func parseFuncDeclWithMode(
 	if err != nil {
 		return nil, err
 	}
+	typeParams, err := parser.ParseTypeParams(
+		p,
+		"function generic",
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	params, err := parseParams(p)
 	if err != nil {
@@ -81,23 +88,29 @@ func parseFuncDeclWithMode(
 	}
 
 	if isComptime {
-		return NewComptimeFuncDecl(
+		decl := NewComptimeFuncDecl(
 			p.Ctx(),
 			recv,
 			name,
 			params,
 			returnType,
 			body,
-		), nil
+		)
+		decl.TypeParams = typeParams
+		decl.RegisterGenericInfo(p.Ctx())
+		return decl, nil
 	}
-	return NewFuncDecl(
+	decl := NewFuncDecl(
 		p.Ctx(),
 		recv,
 		name,
 		params,
 		returnType,
 		body,
-	), nil
+	)
+	decl.TypeParams = typeParams
+	decl.RegisterGenericInfo(p.Ctx())
+	return decl, nil
 }
 
 func parseReceiver(p parser.Parser) (*Param, error) {

@@ -11,10 +11,26 @@ import (
 
 func RegisterParser(p parser.Parser) {
 	p.StmtRegister(token.FN, parseFuncDecl)
+	p.StmtRegister(token.COMPTIME, parseComptimeFuncDecl)
 	p.StmtRegister(token.RETURN, parseReturnStmt)
 }
 
 func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
+	return parseFuncDeclWithMode(p, false)
+}
+
+func parseComptimeFuncDecl(p parser.Parser) (ast.Expr, error) {
+	p.Next() // skip comptime
+	if !p.Match(token.FN) {
+		return nil, expected(p, token.FN)
+	}
+	return parseFuncDeclWithMode(p, true)
+}
+
+func parseFuncDeclWithMode(
+	p parser.Parser,
+	isComptime bool,
+) (ast.Expr, error) {
 	p.Next() // skip fn
 
 	recv, err := parseReceiver(p)
@@ -26,19 +42,31 @@ func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+	typeParams, err := parser.ParseTypeParams(
+		p,
+		"function generic",
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	params, err := parseParams(p)
 	if err != nil {
 		return nil, err
 	}
 
-	var returnType ast.Expr
-	if p.Match(token.IDENT) || p.CurrentToken().Type.IsType() {
-		ident, err := parseTypeIdent(p, "return type")
+	var returnType *ast.TypeRef
+	if p.Match(token.STAR) ||
+		p.Match(token.LBRACKET) ||
+		p.Match(token.LPARENT) ||
+		p.Match(token.TYPE) ||
+		p.Match(token.IDENT) ||
+		p.CurrentToken().Type.IsType() {
+		typeRef, err := parseTypeRef(p, "return type")
 		if err != nil {
 			return nil, err
 		}
-		returnType = ident
+		returnType = typeRef
 	}
 
 	if !p.MatchNext(token.LBRACE) {
@@ -59,7 +87,30 @@ func parseFuncDecl(p parser.Parser) (ast.Expr, error) {
 		p.MatchNext(token.SEMICOLON)
 	}
 
-	return NewFuncDecl(p.Ctx(), recv, name, params, returnType, body), nil
+	if isComptime {
+		decl := NewComptimeFuncDecl(
+			p.Ctx(),
+			recv,
+			name,
+			params,
+			returnType,
+			body,
+		)
+		decl.TypeParams = typeParams
+		decl.RegisterGenericInfo(p.Ctx())
+		return decl, nil
+	}
+	decl := NewFuncDecl(
+		p.Ctx(),
+		recv,
+		name,
+		params,
+		returnType,
+		body,
+	)
+	decl.TypeParams = typeParams
+	decl.RegisterGenericInfo(p.Ctx())
+	return decl, nil
 }
 
 func parseReceiver(p parser.Parser) (*Param, error) {
@@ -76,9 +127,7 @@ func parseReceiver(p parser.Parser) (*Param, error) {
 		return nil, expected(p, token.COLON)
 	}
 
-	isPtr := p.MatchNext(token.STAR)
-
-	receiverType, err := parseIdent(p, "receiver type")
+	receiverType, err := parseTypeRef(p, "receiver type")
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +136,7 @@ func parseReceiver(p parser.Parser) (*Param, error) {
 		return nil, expected(p, token.RPARENT)
 	}
 
-	return &Param{Name: name, Type: receiverType, IsPtr: isPtr}, nil
+	return &Param{Name: name, Type: receiverType}, nil
 }
 
 func parseParams(p parser.Parser) ([]Param, error) {
@@ -104,7 +153,7 @@ func parseParams(p parser.Parser) ([]Param, error) {
 
 		param := Param{Name: name}
 		if p.MatchNext(token.COLON) {
-			paramType, err := parseTypeIdent(p, "parameter type")
+			paramType, err := parseTypeRef(p, "parameter type")
 			if err != nil {
 				return nil, err
 			}
@@ -138,19 +187,9 @@ func parseReturnStmt(p parser.Parser) (ast.Expr, error) {
 	return NewReturnStmt(expr), nil
 }
 
-func parseTypeIdent(p parser.Parser, label string) (Ident, error) {
-	if !p.Match(token.IDENT) && !p.CurrentToken().Type.IsType() {
-		return "", fmt.Errorf(
-			"expected %s, got %s at %d:%d",
-			label,
-			p.CurrentToken().Type,
-			p.CurrentToken().Line,
-			p.CurrentToken().Col,
-		)
-	}
-
-	tok := p.Next()
-	return literal_parser.NewIdentExpr(tok.Literal), nil
+func parseTypeRef(p parser.Parser, label string) (*ast.TypeRef, error) {
+	ref, err := parser.ParseTypeRef(p, label)
+	return &ref, err
 }
 
 func parseIdent(p parser.Parser, label string) (Ident, error) {

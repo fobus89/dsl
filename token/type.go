@@ -75,6 +75,7 @@ const (
 	QUESTION    // ?
 	COLON       // :
 	COLON_COLON // ::
+	FAT_ARROW   // =>
 	SEMICOLON   // ;
 	COMMA       // ,
 	DOT         // .
@@ -103,7 +104,9 @@ const (
 	BETWEEN   // between
 	BREAK     // break
 	CATCH     // catch
+	COMPTIME  // comptime
 	CONST     // const
+	CONTINUE  // continue
 	DEFER     // defer
 	DO        // do
 	ELSE      // else

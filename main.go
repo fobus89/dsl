@@ -15,11 +15,18 @@ import (
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
+	flow_parser "github.com/fobus89/dsl/syntax/flow"
+	forstmt_parser "github.com/fobus89/dsl/syntax/for_stmt"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
+	generic_parser "github.com/fobus89/dsl/syntax/generic"
+	ifstmt_parser "github.com/fobus89/dsl/syntax/if_stmt"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	map_parser "github.com/fobus89/dsl/syntax/map"
+	matchstmt_parser "github.com/fobus89/dsl/syntax/match_stmt"
 	member_parser "github.com/fobus89/dsl/syntax/member"
 	select_parser "github.com/fobus89/dsl/syntax/select"
 	typedecl_parser "github.com/fobus89/dsl/syntax/type_decl"
@@ -28,9 +35,91 @@ import (
 )
 
 func main() {
+
 	p := parser.NewParser(`
-		type User struct { name: *string }
+		type Int int
+		fn Str() string {
+			return "hello" + 122
+		}
+	
+		fn numb() Int {
+			return  122
+		}
+
+		q = numb() + numb()
+
+		type User struct { name: *string = Str() id:int=-1 }
 		fn (u: *User) Name() String { return u.name + (2121 * 2 /2 * (1+22)) }
+		u = User{}
+
+		sum = 0
+		for item in testarray2 {
+			if true {
+				sum = sum + item
+			}
+		}
+
+		let mixed = [2][][]User{
+
+		}
+
+		for item in mixed {
+				for item2 in item {
+					for item3 in item2 {
+
+					}
+			}
+		}
+		let x= if true {mixed}
+
+		let result = for item in mixed {
+			break if true {item}
+		}
+
+		let result = match 2 {
+			1 => "one",
+			2 => "two",
+			_ => "other",
+		}
+
+	enum State {
+		Idle,
+		Running,
+		Stopped,
+	}
+
+let state = State.Idle
+
+let result = match state {
+    State.Idle => 0,
+    State.Running => 1,
+    State.Stopped => 2,
+}
+
+enum Message {
+    Quit(User),
+    Move(int, int),
+    Write(string),
+}
+
+let msg = Message.Move(12, 4)
+
+let result = match msg {
+    Message.Quit(_) => "quit",
+
+    Message.Move(x, _) if x > 10 => "large move",
+
+    Message.Move(_, _) => "move",
+
+    Message.Write(text) => text,
+}
+	let pair = (10, "hello")
+	fn (p: Point) sum() int {
+		return p.0 + p.1
+	}
+	type Point = (int, int)
+	fn identity[T any](value: T) T { return value }
+	let value = identity[int](1)
 	`)
 
 	p.SetValue("id", value.NewType(12211))
@@ -150,11 +239,18 @@ func main() {
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
 	comparison_parser.RegisterParser(p)
+	flow_parser.RegisterParser(p)
+	forstmt_parser.RegisterParser(p)
 	any_parser.RegisterParser(p)
 	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
+	collection_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
+	generic_parser.RegisterParser(p)
+	ifstmt_parser.RegisterParser(p)
+	matchstmt_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	select_parser.RegisterParser(p)

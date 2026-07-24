@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/value"
 )
@@ -30,6 +32,8 @@ type scope struct {
 	functions MapType[string, functype]
 	types     MapType[string, ast.TypeDef]
 	methods   MapType[string, MapType[string, functype]]
+	generics  MapType[string, []ast.TypeParam]
+	instances MapType[string, [][]ast.TypeRef]
 }
 
 func NewCtxWithParent(parent *scope) *scope {
@@ -39,7 +43,63 @@ func NewCtxWithParent(parent *scope) *scope {
 		functions: MapType[string, functype]{},
 		types:     MapType[string, ast.TypeDef]{},
 		methods:   MapType[string, MapType[string, functype]]{},
+		generics:  MapType[string, []ast.TypeParam]{},
+		instances: MapType[string, [][]ast.TypeRef]{},
 	}
+}
+
+func (s *scope) RegisterGenericInstance(
+	key string,
+	args []ast.TypeRef,
+) {
+	instances, _ := s.instances.Get(key)
+	signature := genericArgsSignature(args)
+	for _, existing := range instances {
+		if genericArgsSignature(existing) == signature {
+			return
+		}
+	}
+	copyArgs := append([]ast.TypeRef(nil), args...)
+	s.instances.Set(key, append(instances, copyArgs))
+}
+
+func (s *scope) GetGenericInstances(
+	key string,
+) [][]ast.TypeRef {
+	if instances, ok := s.instances.Get(key); ok {
+		return instances
+	}
+	if s.parent != nil {
+		return s.parent.GetGenericInstances(key)
+	}
+	return nil
+}
+
+func genericArgsSignature(args []ast.TypeRef) string {
+	parts := make([]string, 0, len(args))
+	for _, arg := range args {
+		parts = append(parts, arg.String())
+	}
+	return strings.Join(parts, ",")
+}
+
+func (s *scope) SetGeneric(
+	key string,
+	params []ast.TypeParam,
+) {
+	s.generics.Set(key, params)
+}
+
+func (s *scope) GetGeneric(
+	key string,
+) ([]ast.TypeParam, bool) {
+	if params, ok := s.generics.Get(key); ok {
+		return params, true
+	}
+	if s.parent != nil {
+		return s.parent.GetGeneric(key)
+	}
+	return nil, false
 }
 
 func NewCtx() *scope {

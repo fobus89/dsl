@@ -1,12 +1,14 @@
 package typedecl_parser_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	call_parser "github.com/fobus89/dsl/syntax/call"
+	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	map_parser "github.com/fobus89/dsl/syntax/map"
@@ -24,11 +26,80 @@ func newTypeDeclTestParser(input string) testParser {
 	literal_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
+	collection_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	typedecl_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
 	return p
+}
+
+func TestRecursiveCollectionFieldType(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		type Grid struct {
+			cells: [2][][]int = [2][][]int{{{1}, {2, 3}}, {{4}}}
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decl := exprs[0].(*typedecl_parser.TypeDecl)
+	field := decl.Def.Fields["cells"]
+	if got, want := field.Type.String(), "[2][][]int"; got != want {
+		t.Fatalf("field type = %q, want %q", got, want)
+	}
+
+	generated, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(generated, "cells [2][][]int") {
+		t.Fatalf("unexpected generated declaration:\n%s", generated)
+	}
+}
+
+func TestRustStyleEnumDeclaration(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		enum Message {
+			Quit,
+			Move(int, int),
+			Write(string),
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decl := exprs[0].(*typedecl_parser.TypeDecl)
+	if decl.Def.Kind != ast.EnumType ||
+		len(decl.Def.Variants) != 3 {
+		t.Fatalf("unexpected enum definition: %#v", decl.Def)
+	}
+
+	generated, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"type Message interface",
+		"type MessageQuit struct",
+		"type MessageMove struct",
+		"V0 int",
+		"V1 int",
+		"func (MessageWrite) isMessage()",
+	} {
+		if !strings.Contains(generated, expected) {
+			t.Fatalf(
+				"generated enum misses %q:\n%s",
+				expected,
+				generated,
+			)
+		}
+	}
 }
 
 func TestPointerStructFieldPrintGO(t *testing.T) {
@@ -47,8 +118,10 @@ func TestPointerStructFieldPrintGO(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *TypeDecl, got %T", exprs[0])
 	}
-	if got := decl.Def.Fields["name"]; got != "*String" {
-		t.Fatalf("field type = %q, want %q", got, "*String")
+	if got := decl.Def.Fields["name"].Type; got.Name != "String" ||
+		!got.IsPtr ||
+		got.Kind != ast.NamedTypeRef {
+		t.Fatalf("field type = %#v, want pointer to String", got)
 	}
 
 	got, err := decl.PrintGO(p.Ctx())
@@ -56,6 +129,45 @@ func TestPointerStructFieldPrintGO(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "type User struct {\n\tname *string\n}"
+	if got != want {
+		t.Fatalf("PrintGO() = %q, want %q", got, want)
+	}
+}
+
+func TestStructFieldDefaultValue(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		type User struct {
+			name: *string = "some str"
+		}
+		u = User {}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := exprs[1].Eval(p.Ctx()); err != nil {
+		t.Fatal(err)
+	}
+
+	user, ok := p.Ctx().GetValue("u")
+	if !ok {
+		t.Fatal("expected u in context")
+	}
+	name, ok := user.Field("name")
+	if !ok {
+		t.Fatal("expected default name field")
+	}
+	if got := name.UnsafeCastString(); got != "some str" {
+		t.Fatalf("name = %q, want %q", got, "some str")
+	}
+
+	got, err := exprs[1].PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `u := User{name: new("some str")}`
 	if got != want {
 		t.Fatalf("PrintGO() = %q, want %q", got, want)
 	}

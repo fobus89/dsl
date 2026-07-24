@@ -63,6 +63,39 @@ func Test_Lexer_SimpleString(t *testing.T) {
 	}
 }
 
+func Test_Lexer_EnumAndMatchArrow(t *testing.T) {
+	got := NewLexer(`enum State { Idle } match value { _ => 1 }`).
+		Tokens()
+	expectedTypes := []token.TokenType{
+		token.ENUM,
+		token.IDENT,
+		token.LBRACE,
+		token.IDENT,
+		token.RBRACE,
+		token.MATCH,
+		token.IDENT,
+		token.LBRACE,
+		token.IDENT,
+		token.FAT_ARROW,
+		token.INT_LITERAL,
+		token.RBRACE,
+		token.EOF,
+	}
+	if len(got) != len(expectedTypes) {
+		t.Fatalf("got %d tokens, want %d", len(got), len(expectedTypes))
+	}
+	for index, expected := range expectedTypes {
+		if got[index].Type != expected {
+			t.Fatalf(
+				"token %d = %s, want %s",
+				index,
+				got[index].Type,
+				expected,
+			)
+		}
+	}
+}
+
 func Test_Lexer_StringWithEscapes(t *testing.T) {
 	input := `"hello\nworld\t\"test\""`
 	l := NewLexer(input)
@@ -219,6 +252,20 @@ func Test_Lexer_CompileTime_Ident(t *testing.T) {
 
 	if tok.Len() != 1 {
 		t.Errorf("expected 1 child token, got %d", tok.Len())
+	}
+}
+
+func Test_Lexer_ComptimeFunctionKeyword(t *testing.T) {
+	got := NewLexer("comptime fn inspect").Tokens()
+	expected := []token.Token{
+		token.NewToken(token.COMPTIME, "comptime"),
+		token.NewToken(token.FN, "fn"),
+		token.NewToken(token.IDENT, "inspect"),
+		token.NewToken(token.EOF, ""),
+	}
+
+	if !tokensEqual(got, expected) {
+		t.Fatalf("tokens mismatch:\n got=%#v\n want=%#v", got, expected)
 	}
 }
 

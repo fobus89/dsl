@@ -5,6 +5,7 @@ import (
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
+	tuple_parser "github.com/fobus89/dsl/syntax/tuple"
 	"github.com/fobus89/dsl/token"
 )
 
@@ -25,6 +26,10 @@ func nudGrouping(p parser.Parser) (ast.Expr, error) {
 		return nil, fmt.Errorf("expected LPARENT, got %v", p.CurrentToken())
 	}
 
+	if p.MatchNext(token.RPARENT) {
+		return tuple_parser.NewTupleExpr(nil), nil
+	}
+
 	expr, err := p.ParseExpr(parser.Lowest)
 	{
 		if err != nil {
@@ -32,11 +37,35 @@ func nudGrouping(p parser.Parser) (ast.Expr, error) {
 		}
 	}
 
-	if !p.MatchNext(token.RPARENT) {
-		return nil, fmt.Errorf("expected RPARENT, got %v", p.CurrentToken())
+	if !p.MatchNext(token.COMMA) {
+		if !p.MatchNext(token.RPARENT) {
+			return nil, fmt.Errorf(
+				"expected RPARENT, got %v",
+				p.CurrentToken(),
+			)
+		}
+		return expr, nil
 	}
 
-	return expr, nil
+	elements := []ast.Expr{expr}
+	for !p.MatchNext(token.RPARENT) {
+		elem, err := p.ParseExpr(parser.Lowest)
+		if err != nil {
+			return nil, err
+		}
+		elements = append(elements, elem)
+		if p.MatchNext(token.RPARENT) {
+			break
+		}
+		if !p.MatchNext(token.COMMA) {
+			return nil, fmt.Errorf(
+				"expected comma in tuple, got %v",
+				p.CurrentToken(),
+			)
+		}
+	}
+
+	return tuple_parser.NewTupleExpr(elements), nil
 }
 
 func ledBinary(p parser.Parser, left ast.Expr, bp parser.BindingPower) (ast.Expr, error) {

@@ -13,9 +13,9 @@ func TestTypeDeclPrintGO(t *testing.T) {
 	decl := NewTypeDecl(ctx, ast.TypeDef{
 		Name: "User",
 		Kind: ast.StructType,
-		Fields: map[string]string{
-			"name": "string",
-			"id":   "int64",
+		Fields: map[string]ast.FieldDef{
+			"name": {Type: ast.TypeRef{Name: "string"}},
+			"id":   {Type: ast.TypeRef{Name: "int64"}},
 		},
 	})
 
@@ -31,6 +31,18 @@ func TestTypeDeclPrintGO(t *testing.T) {
 
 func TestStructLiteralPrintGO(t *testing.T) {
 	ctx := parser.NewCtx()
+	ctx.SetType("User", ast.TypeDef{
+		Name: "User",
+		Kind: ast.StructType,
+		Fields: map[string]ast.FieldDef{
+			"id": {
+				Type: ast.TypeRef{Name: "int64"},
+			},
+			"name": {
+				Type: ast.TypeRef{Name: "string"},
+			},
+		},
+	})
 	literal := NewStructLiteral(
 		literal_parser.NewIdentExpr("User"),
 		[]FieldValue{

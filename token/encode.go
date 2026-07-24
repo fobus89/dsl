@@ -114,6 +114,8 @@ func (t TokenType) String() string {
 		return ":"
 	case COLON_COLON:
 		return "::"
+	case FAT_ARROW:
+		return "=>"
 	case SEMICOLON:
 		return ";"
 	case COMMA:
@@ -152,8 +154,12 @@ func (t TokenType) String() string {
 		return "break"
 	case CATCH:
 		return "catch"
+	case COMPTIME:
+		return "comptime"
 	case CONST:
 		return "const"
+	case CONTINUE:
+		return "continue"
 	case DEFER:
 		return "defer"
 	case DO:

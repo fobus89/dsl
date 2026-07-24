@@ -18,6 +18,7 @@ type (
 
 type Parser interface {
 	ParseExpr(bp BindingPower) (ast.Expr, error)
+	ParseExprUntil(bp BindingPower, stops ...token.TokenType) (ast.Expr, error)
 	ParseStmt() (ast.Expr, error)
 	Next() token.Token
 	HasToken() bool
@@ -55,6 +56,9 @@ type parser struct {
 	bpLookup   BpLookupType
 	ctx        *scope
 	pos        int
+	exprDepth  int
+	stopDepth  int
+	stopTokens []token.TokenType
 }
 
 func (p *parser) Ctx() ast.Ctx {

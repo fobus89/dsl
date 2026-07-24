@@ -47,6 +47,10 @@ func (*LogicalExpr) Type(_ ast.Ctx) string {
 	return "logical"
 }
 
+func (l *LogicalExpr) Parts() (ast.Expr, token.TokenType, ast.Expr) {
+	return l.left, l.op, l.right
+}
+
 func (l *LogicalExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	op := l.op.String()
 	switch l.op {

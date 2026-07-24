@@ -12,6 +12,7 @@ import (
 	"github.com/fobus89/dsl/parser"
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
+	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
@@ -31,11 +32,73 @@ func newMatchParser(input string) testParser {
 	comparison_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
+	funcdecl_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	typedecl_parser.RegisterParser(p)
 	matchstmt_parser.RegisterParser(p)
 	let_parser.RegisterParser(p)
 	return p
+}
+
+func TestEnumReceiverMethod(t *testing.T) {
+	p := newMatchParser(`
+		enum Message {
+			Quit,
+			Write(string),
+		}
+
+		fn (m: Message) describe() string {
+			return match m {
+				Message.Quit => "quit",
+				Message.Write(text) => text,
+			}
+		}
+
+		let msg = Message.Write("hello")
+		let result = msg.describe()
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expr := range exprs {
+		if _, err := expr.Eval(p.Ctx()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, ok := p.Ctx().GetValue("result")
+	if !ok || result.UnsafeCastString() != "hello" {
+		t.Fatalf("result = %#v, want hello", result.Any())
+	}
+
+	parts := make([]string, 0, len(exprs))
+	for _, expr := range exprs {
+		printed, err := expr.PrintGO(p.Ctx())
+		if err != nil {
+			t.Fatal(err)
+		}
+		parts = append(parts, printed)
+	}
+	if !strings.Contains(
+		parts[1],
+		"func Message_describe(m Message) string",
+	) {
+		t.Fatalf("unexpected enum method:\n%s", parts[1])
+	}
+	if !strings.Contains(
+		parts[3],
+		"result := Message_describe(msg)",
+	) {
+		t.Fatalf("unexpected enum method call:\n%s", parts[3])
+	}
+
+	source := "package generated\n\n" +
+		parts[0] + "\n\n" +
+		parts[1] + "\n\nfunc run() {\n" +
+		parts[2] + "\n" +
+		parts[3] + "\n_ = result\n}"
+	typeCheckGeneratedGo(t, source)
 }
 
 func TestEnumMatchPayloadGuardAndExhaustiveness(t *testing.T) {
@@ -111,6 +174,11 @@ func TestEnumMatchPayloadGuardAndExhaustiveness(t *testing.T) {
 		enumDecl + "\n\nfunc run() {\n" +
 		constructed + "\n" +
 		generated + "\n_ = result\n}"
+	typeCheckGeneratedGo(t, source)
+}
+
+func typeCheckGeneratedGo(t *testing.T, source string) {
+	t.Helper()
 	files := gotoken.NewFileSet()
 	file, err := goparser.ParseFile(
 		files,

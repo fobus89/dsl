@@ -181,7 +181,7 @@ func (m MemberExpr) PrintGOEnumCall(
 ) (string, bool, error) {
 	enumType, variant, ok := m.enumVariant(ctx)
 	if !ok {
-		return "", false, nil
+		return m.printGOEnumMethodCall(ctx, args)
 	}
 	if len(args) != len(variant.Fields) {
 		return "", true, fmt.Errorf(
@@ -223,6 +223,43 @@ func (m MemberExpr) PrintGOEnumCall(
 			enumType.Name,
 			variant.Name,
 		) + "{" + strings.Join(fields, ", ") + "})", true, nil
+}
+
+func (m MemberExpr) printGOEnumMethodCall(
+	ctx ast.Ctx,
+	args []ast.Expr,
+) (string, bool, error) {
+	receiverType := memberExprValueType(ctx, m.object)
+	def, declared := ctx.GetType(receiverType.Name)
+	if !declared || def.Kind != ast.EnumType {
+		return "", false, nil
+	}
+	for _, variant := range def.Variants {
+		if variant.Name == string(m.property) {
+			return "", false, nil
+		}
+	}
+	if _, exists := ctx.GetMethod(
+		def.Name,
+		string(m.property),
+	); !exists {
+		return "", false, nil
+	}
+
+	receiver, err := m.object.PrintGO(ctx)
+	if err != nil {
+		return "", true, err
+	}
+	printedArgs := []string{receiver}
+	for _, arg := range args {
+		printed, err := arg.PrintGO(ctx)
+		if err != nil {
+			return "", true, err
+		}
+		printedArgs = append(printedArgs, printed)
+	}
+	return def.Name + "_" + string(m.property) +
+		"(" + strings.Join(printedArgs, ", ") + ")", true, nil
 }
 
 func (m MemberExpr) enumVariant(

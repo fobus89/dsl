@@ -96,7 +96,7 @@ let result = match state {
 }
 
 enum Message {
-    Quit,
+    Quit(User),
     Move(int, int),
     Write(string),
 }
@@ -104,7 +104,7 @@ enum Message {
 let msg = Message.Move(12, 4)
 
 let result = match msg {
-    Message.Quit => "quit",
+    Message.Quit(_) => "quit",
 
     Message.Move(x, _) if x > 10 => "large move",
 

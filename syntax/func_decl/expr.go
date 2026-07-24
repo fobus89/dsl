@@ -441,6 +441,17 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 				d.Name,
 			)
 		}
+		if def.Kind == ast.EnumType {
+			for _, variant := range def.Variants {
+				if variant.Name == string(d.Name) {
+					return "", fmt.Errorf(
+						"enum %s has both variant and method named %s",
+						receiverType,
+						d.Name,
+					)
+				}
+			}
+		}
 
 		printCtx.SetValue(
 			string(d.Recv.Name),
@@ -462,17 +473,27 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	}
 
 	receiver := ""
+	goName := string(d.Name)
 	if d.Recv != nil {
 		receiverName, err := d.Recv.Name.PrintGO(ctx)
 		if err != nil {
 			return "", err
 		}
 		receiverType := d.Recv.Type.GoString(ctx)
-		receiver = fmt.Sprintf(
-			"(%s %s) ",
-			receiverName,
-			receiverType,
-		)
+		def, _ := ctx.GetType(d.Recv.Type.Name)
+		if def.Kind == ast.EnumType {
+			params = append(
+				[]string{receiverName + " " + receiverType},
+				params...,
+			)
+			goName = d.Recv.Type.Name + "_" + string(d.Name)
+		} else {
+			receiver = fmt.Sprintf(
+				"(%s %s) ",
+				receiverName,
+				receiverType,
+			)
+		}
 	}
 
 	returnType := ""
@@ -501,7 +522,7 @@ func (d *FuncDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	return fmt.Sprintf(
 		"func %s%s(%s)%s {\n%s\n}",
 		receiver,
-		d.Name,
+		goName,
 		strings.Join(params, ", "),
 		returnType,
 		strings.Join(body, "\n"),

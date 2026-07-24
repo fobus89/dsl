@@ -105,6 +105,9 @@ func collectionValueMatches(
 		target.Kind == ast.SliceTypeRef {
 		return actual.TypeName() == target.String()
 	}
+	if target.Kind == ast.TupleTypeRef {
+		return actual.TypeName() == target.String()
+	}
 	if target.IsPtr {
 		return actual.TypeName() == target.String()
 	}

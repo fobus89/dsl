@@ -23,6 +23,7 @@ const (
 	NamedTypeRef TypeRefKind = iota
 	ArrayTypeRef
 	SliceTypeRef
+	TupleTypeRef
 )
 
 type TypeRef struct {
@@ -30,6 +31,7 @@ type TypeRef struct {
 	IsPtr bool
 	Kind  TypeRefKind
 	Elem  *TypeRef
+	Elems []TypeRef
 	Len   int
 }
 
@@ -190,6 +192,8 @@ func classifyMetaType(ref TypeRef, def *TypeDef) MetaTypeKind {
 		return SliceMetaType
 	case ArrayTypeRef:
 		return ArrayMetaType
+	case TupleTypeRef:
+		return TupleMetaType
 	}
 	if def != nil {
 		if def.Kind == StructType {
@@ -239,11 +243,48 @@ func isMetaNumber(ref TypeRef) bool {
 }
 
 func ParseTypeRef(name string) TypeRef {
+	if strings.HasPrefix(name, "(") &&
+		strings.HasSuffix(name, ")") {
+		inner := name[1 : len(name)-1]
+		ref := TypeRef{Kind: TupleTypeRef}
+		if inner == "" {
+			return ref
+		}
+		for _, part := range splitTupleType(inner) {
+			ref.Elems = append(
+				ref.Elems,
+				ParseTypeRef(strings.TrimSpace(part)),
+			)
+		}
+		return ref
+	}
 	ref, rest := parseTypeRefString(name)
 	if rest == "" {
 		return ref
 	}
 	return TypeRef{Name: name}
+}
+
+func splitTupleType(input string) []string {
+	var (
+		parts []string
+		start int
+		depth int
+	)
+	for index, char := range input {
+		switch char {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				parts = append(parts, input[start:index])
+				start = index + 1
+			}
+		}
+	}
+	return append(parts, input[start:])
 }
 
 func parseTypeRefString(name string) (TypeRef, string) {
@@ -279,10 +320,21 @@ func parseTypeRefString(name string) (TypeRef, string) {
 }
 
 func (t TypeRef) IsZero() bool {
-	return t.Name == "" && t.Elem == nil
+	return t.Name == "" &&
+		t.Elem == nil &&
+		t.Elems == nil &&
+		t.Kind == NamedTypeRef
 }
 
 func (t TypeRef) IsMeta() bool {
+	if t.Kind == TupleTypeRef {
+		for _, elem := range t.Elems {
+			if elem.IsMeta() {
+				return true
+			}
+		}
+		return false
+	}
 	if t.Kind == NamedTypeRef {
 		return IsMetaTypeName(t.Name)
 	}
@@ -310,6 +362,12 @@ func (t TypeRef) String() string {
 			return prefix + "[]any"
 		}
 		return prefix + "[]" + t.Elem.String()
+	case TupleTypeRef:
+		elems := make([]string, 0, len(t.Elems))
+		for _, elem := range t.Elems {
+			elems = append(elems, elem.String())
+		}
+		return prefix + "(" + strings.Join(elems, ",") + ")"
 	default:
 		return prefix + t.Name
 	}
@@ -332,6 +390,16 @@ func (t TypeRef) GoString(ctx Ctx) string {
 			return prefix + "[]any"
 		}
 		return prefix + "[]" + t.Elem.GoString(ctx)
+	case TupleTypeRef:
+		fields := make([]string, 0, len(t.Elems))
+		for index, elem := range t.Elems {
+			fields = append(
+				fields,
+				"V"+strconv.Itoa(index)+" "+elem.GoString(ctx),
+			)
+		}
+		return prefix + "struct { " +
+			strings.Join(fields, "; ") + " }"
 	}
 
 	name := t.Name
@@ -352,8 +420,9 @@ type FieldDef struct {
 }
 
 type EnumVariantDef struct {
-	Name   string
-	Fields []TypeRef
+	Name       string
+	Fields     []TypeRef
+	FieldNames []string
 }
 
 type TypeDef struct {
@@ -368,6 +437,10 @@ type EnumValue struct {
 	TypeName string
 	Variant  string
 	Payload  []value.Type
+}
+
+type TupleValue struct {
+	Elements []value.Type
 }
 
 func EnumVariantGoName(typeName, variant string) string {

@@ -49,6 +49,7 @@ func parseEnumDecl(p parser.Parser) (ast.Expr, error) {
 		seen[variantName] = struct{}{}
 
 		var fields []ast.TypeRef
+		var fieldNames []string
 		if p.MatchNext(token.LPARENT) {
 			for !p.MatchNext(token.RPARENT) {
 				fieldType, err := parseTypeName(p)
@@ -63,10 +64,44 @@ func parseEnumDecl(p parser.Parser) (ast.Expr, error) {
 					return nil, expected(p, token.COMMA)
 				}
 			}
+		} else if p.MatchNext(token.LBRACE) {
+			seenFields := map[string]struct{}{}
+			for !p.MatchNext(token.RBRACE) {
+				fieldName, err := parseIdent(
+					p,
+					"enum variant field",
+				)
+				if err != nil {
+					return nil, err
+				}
+				if _, exists := seenFields[string(fieldName)]; exists {
+					return nil, fmt.Errorf(
+						"enum variant field %s declared more than once",
+						fieldName,
+					)
+				}
+				seenFields[string(fieldName)] = struct{}{}
+				if !p.MatchNext(token.COLON) {
+					return nil, expected(p, token.COLON)
+				}
+				fieldType, err := parseTypeName(p)
+				if err != nil {
+					return nil, err
+				}
+				fieldNames = append(fieldNames, string(fieldName))
+				fields = append(fields, fieldType)
+				if p.MatchNext(token.RBRACE) {
+					break
+				}
+				if !p.MatchNext(token.COMMA) {
+					return nil, expected(p, token.COMMA)
+				}
+			}
 		}
 		def.Variants = append(def.Variants, ast.EnumVariantDef{
-			Name:   variantName,
-			Fields: fields,
+			Name:       variantName,
+			Fields:     fields,
+			FieldNames: fieldNames,
 		})
 
 		if p.MatchNext(token.RBRACE) {
@@ -111,6 +146,7 @@ func parseTypeDecl(p parser.Parser) (ast.Expr, error) {
 		}
 		def.Fields = fields
 	} else {
+		p.MatchNext(token.EQ)
 		underlying, err := parseTypeName(p)
 		if err != nil {
 			return nil, err
@@ -172,13 +208,64 @@ func parseStructLiteral(
 	left ast.Expr,
 	_ parser.BindingPower,
 ) (ast.Expr, error) {
+	if path, ok := left.(interface {
+		Path() ([]string, bool)
+	}); ok {
+		parts, valid := path.Path()
+		if valid && len(parts) == 2 {
+			return parseEnumStructLiteral(p, parts[0], parts[1])
+		}
+	}
+
 	typeName, ok := left.(Ident)
 	if !ok {
-		return nil, fmt.Errorf("struct literal requires a type name, got %T", left)
+		return nil, fmt.Errorf(
+			"struct literal requires a type name, got %T",
+			left,
+		)
 	}
 
 	p.Next() // skip {
 
+	fields, err := parseFieldValues(p)
+	if err != nil {
+		return nil, err
+	}
+	return NewStructLiteral(typeName, fields), nil
+}
+
+func parseEnumStructLiteral(
+	p parser.Parser,
+	enumName string,
+	variantName string,
+) (ast.Expr, error) {
+	def, declared := p.Ctx().GetType(enumName)
+	if !declared || def.Kind != ast.EnumType {
+		return nil, fmt.Errorf("type %s is not an enum", enumName)
+	}
+	variant, exists := enumVariantByName(def, variantName)
+	if !exists || variant.FieldNames == nil {
+		return nil, fmt.Errorf(
+			"%s.%s is not a struct enum variant",
+			enumName,
+			variantName,
+		)
+	}
+	p.Next() // skip {
+	fields, err := parseFieldValues(p)
+	if err != nil {
+		return nil, err
+	}
+	return NewEnumStructLiteral(
+		enumName,
+		variantName,
+		fields,
+	), nil
+}
+
+func parseFieldValues(
+	p parser.Parser,
+) ([]FieldValue, error) {
 	var fields []FieldValue
 	seen := map[string]struct{}{}
 	for !p.MatchNext(token.RBRACE) {
@@ -209,7 +296,19 @@ func parseStructLiteral(
 		}
 	}
 
-	return NewStructLiteral(typeName, fields), nil
+	return fields, nil
+}
+
+func enumVariantByName(
+	def ast.TypeDef,
+	name string,
+) (ast.EnumVariantDef, bool) {
+	for _, variant := range def.Variants {
+		if variant.Name == name {
+			return variant, true
+		}
+	}
+	return ast.EnumVariantDef{}, false
 }
 
 func parseTypeName(p parser.Parser) (ast.TypeRef, error) {

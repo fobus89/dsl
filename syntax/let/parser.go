@@ -16,18 +16,53 @@ func RegisterParser(p parser.Parser) {
 func parseLet(p parser.Parser) (ast.Expr, error) {
 	p.Next() // skip let
 
-	if !p.Match(token.IDENT) {
+	var (
+		names        []Ident
+		tuplePattern bool
+	)
+	if p.MatchNext(token.LPARENT) {
+		tuplePattern = true
+		for !p.MatchNext(token.RPARENT) {
+			if !p.Match(token.IDENT) {
+				return nil, fmt.Errorf(
+					"tuple destructuring expects an identifier, got %s",
+					p.CurrentToken().Type,
+				)
+			}
+			names = append(
+				names,
+				literal_parser.NewIdentExpr(p.Next().Literal),
+			)
+			if p.MatchNext(token.RPARENT) {
+				break
+			}
+			if !p.MatchNext(token.COMMA) {
+				return nil, fmt.Errorf(
+					"expected comma in tuple destructuring, got %s",
+					p.CurrentToken().Type,
+				)
+			}
+		}
+		if len(names) == 0 {
+			return nil, fmt.Errorf(
+				"tuple destructuring cannot be empty",
+			)
+		}
+	} else if !p.Match(token.IDENT) {
 		return nil, fmt.Errorf(
 			"expected identifier after let, got %s",
 			p.CurrentToken().Type,
 		)
+	} else {
+		names = []Ident{
+			literal_parser.NewIdentExpr(p.Next().Literal),
+		}
 	}
-	name := literal_parser.NewIdentExpr(p.Next().Literal)
+	name := names[0]
 
 	if !p.MatchNext(token.EQ) {
 		return nil, fmt.Errorf(
-			"expected = after let %s, got %s",
-			name,
+			"expected = after let binding, got %s",
 			p.CurrentToken().Type,
 		)
 	}
@@ -52,5 +87,8 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 		)
 	}
 
-	return NewLetExpr(name, expr), nil
+	if !tuplePattern {
+		return NewLetExpr(name, expr), nil
+	}
+	return NewTupleLetExpr(names, expr), nil
 }

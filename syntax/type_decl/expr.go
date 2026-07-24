@@ -63,6 +63,9 @@ func NewTypeDecl(ctx ast.Ctx, def ast.TypeDef) *TypeDecl {
 func registerEnumVariants(ctx ast.Ctx, def ast.TypeDef) {
 	for _, variant := range def.Variants {
 		variant := variant
+		if variant.FieldNames != nil {
+			continue
+		}
 		ctx.SetMethod(
 			def.Name,
 			variant.Name,
@@ -214,11 +217,15 @@ func printGOEnum(ctx ast.Ctx, def ast.TypeDef) (string, error) {
 					variant.Name,
 				)
 			}
+			fieldName := fmt.Sprintf("V%d", index)
+			if variant.FieldNames != nil {
+				fieldName = variant.FieldNames[index]
+			}
 			fields = append(
 				fields,
 				fmt.Sprintf(
-					"V%d %s",
-					index,
+					"%s %s",
+					fieldName,
 					fieldType.GoString(ctx),
 				),
 			)
@@ -239,6 +246,163 @@ func printGOEnum(ctx ast.Ctx, def ast.TypeDef) (string, error) {
 type FieldValue struct {
 	Name  string
 	Value ast.Expr
+}
+
+type EnumStructLiteral struct {
+	EnumName    string
+	VariantName string
+	Fields      []FieldValue
+}
+
+func NewEnumStructLiteral(
+	enumName string,
+	variantName string,
+	fields []FieldValue,
+) *EnumStructLiteral {
+	return &EnumStructLiteral{
+		EnumName:    enumName,
+		VariantName: variantName,
+		Fields:      fields,
+	}
+}
+
+func (e *EnumStructLiteral) Eval(ctx ast.Ctx) (value.Type, error) {
+	def, declared := ctx.GetType(e.EnumName)
+	if !declared || def.Kind != ast.EnumType {
+		return value.NewTypeNil(), fmt.Errorf(
+			"type %s is not an enum",
+			e.EnumName,
+		)
+	}
+	variant, exists := enumVariantDef(def, e.VariantName)
+	if !exists || variant.FieldNames == nil {
+		return value.NewTypeNil(), fmt.Errorf(
+			"%s.%s is not a struct enum variant",
+			e.EnumName,
+			e.VariantName,
+		)
+	}
+	ordered, err := orderEnumStructFields(
+		variant,
+		e.Fields,
+	)
+	if err != nil {
+		return value.NewTypeNil(), err
+	}
+	payload := make([]value.Type, len(ordered))
+	for index, field := range ordered {
+		evaluated, err := field.Value.Eval(ctx)
+		if err != nil {
+			return value.NewTypeNil(), err
+		}
+		if !enumValueMatchesType(
+			ctx,
+			evaluated,
+			variant.Fields[index],
+		) {
+			return value.NewTypeNil(), fmt.Errorf(
+				"enum variant %s.%s field %s expects %s, got %s",
+				e.EnumName,
+				e.VariantName,
+				field.Name,
+				variant.Fields[index].String(),
+				evaluated.TypeName(),
+			)
+		}
+		payload[index] = evaluated
+	}
+	return value.NewTypeWithExplicit(
+		ast.EnumValue{
+			TypeName: e.EnumName,
+			Variant:  e.VariantName,
+			Payload:  payload,
+		},
+		e.EnumName,
+	), nil
+}
+
+func (*EnumStructLiteral) Type(ast.Ctx) string {
+	return "enum_struct_literal"
+}
+
+func (e *EnumStructLiteral) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: e.EnumName}
+}
+
+func (e *EnumStructLiteral) PrintGO(
+	ctx ast.Ctx,
+) (string, error) {
+	def, declared := ctx.GetType(e.EnumName)
+	if !declared || def.Kind != ast.EnumType {
+		return "", fmt.Errorf("type %s is not an enum", e.EnumName)
+	}
+	variant, exists := enumVariantDef(def, e.VariantName)
+	if !exists || variant.FieldNames == nil {
+		return "", fmt.Errorf(
+			"%s.%s is not a struct enum variant",
+			e.EnumName,
+			e.VariantName,
+		)
+	}
+	ordered, err := orderEnumStructFields(variant, e.Fields)
+	if err != nil {
+		return "", err
+	}
+	fields := make([]string, 0, len(ordered))
+	for index, field := range ordered {
+		printed, err := field.Value.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		fields = append(
+			fields,
+			field.Name+": "+printed,
+		)
+		_ = index
+	}
+	return e.EnumName + "(" +
+		ast.EnumVariantGoName(
+			e.EnumName,
+			e.VariantName,
+		) + "{" + strings.Join(fields, ", ") + "})", nil
+}
+
+func enumVariantDef(
+	def ast.TypeDef,
+	name string,
+) (ast.EnumVariantDef, bool) {
+	for _, variant := range def.Variants {
+		if variant.Name == name {
+			return variant, true
+		}
+	}
+	return ast.EnumVariantDef{}, false
+}
+
+func orderEnumStructFields(
+	variant ast.EnumVariantDef,
+	fields []FieldValue,
+) ([]FieldValue, error) {
+	byName := make(map[string]FieldValue, len(fields))
+	for _, field := range fields {
+		byName[field.Name] = field
+	}
+	ordered := make([]FieldValue, len(variant.FieldNames))
+	for index, name := range variant.FieldNames {
+		field, exists := byName[name]
+		if !exists {
+			return nil, fmt.Errorf(
+				"missing enum variant field %s",
+				name,
+			)
+		}
+		ordered[index] = field
+		delete(byName, name)
+	}
+	for name := range byName {
+		return nil, fmt.Errorf("unknown enum variant field %s", name)
+	}
+	return ordered, nil
 }
 
 type StructLiteral struct {

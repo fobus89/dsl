@@ -12,6 +12,32 @@ import (
 func ParseTypeRef(p Parser, label string) (ast.TypeRef, error) {
 	isPtr := p.MatchNext(token.STAR)
 
+	if p.MatchNext(token.LPARENT) {
+		ref := ast.TypeRef{
+			IsPtr: isPtr,
+			Kind:  ast.TupleTypeRef,
+		}
+		for !p.MatchNext(token.RPARENT) {
+			elem, err := ParseTypeRef(p, label)
+			if err != nil {
+				return ast.TypeRef{}, err
+			}
+			ref.Elems = append(ref.Elems, elem)
+			if p.MatchNext(token.RPARENT) {
+				break
+			}
+			if !p.MatchNext(token.COMMA) {
+				return ast.TypeRef{}, fmt.Errorf(
+					"expected , in tuple type, got %s at %d:%d",
+					p.CurrentToken().Type,
+					p.CurrentToken().Line,
+					p.CurrentToken().Col,
+				)
+			}
+		}
+		return ref, nil
+	}
+
 	if p.MatchNext(token.LBRACKET) {
 		ref := ast.TypeRef{IsPtr: isPtr}
 		if p.MatchNext(token.RBRACKET) {

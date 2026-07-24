@@ -11,6 +11,7 @@ import (
 )
 
 type MatchArm struct {
+	Tree         *MatchPattern
 	Pattern      ast.Expr
 	Binding      string
 	Wildcard     bool
@@ -19,6 +20,26 @@ type MatchArm struct {
 	EnumBindings []string
 	Guard        ast.Expr
 	Body         []ast.Expr
+}
+
+type matchPatternKind uint8
+
+const (
+	wildcardPattern matchPatternKind = iota
+	bindingPattern
+	literalPattern
+	tuplePattern
+	enumPattern
+)
+
+type MatchPattern struct {
+	Kind        matchPatternKind
+	Name        string
+	Expr        ast.Expr
+	EnumType    string
+	EnumVariant string
+	Children    []MatchPattern
+	FieldNames  []string
 }
 
 type MatchExpr struct {
@@ -68,6 +89,9 @@ func (a MatchArm) matches(
 	ctx ast.Ctx,
 	subject value.Type,
 ) (bool, error) {
+	if a.Tree != nil {
+		return evalMatchPattern(ctx, *a.Tree, subject)
+	}
 	if a.Binding != "" {
 		ctx.SetValue(a.Binding, subject)
 	}
@@ -119,6 +143,9 @@ func (*MatchExpr) Type(ast.Ctx) string {
 func (m *MatchExpr) ChildExprs() []ast.Expr {
 	children := []ast.Expr{m.Subject}
 	for _, arm := range m.Arms {
+		if arm.Tree != nil {
+			appendPatternExprs(arm.Tree, &children)
+		}
 		if arm.Pattern != nil {
 			children = append(children, arm.Pattern)
 		}
@@ -203,6 +230,15 @@ func (m *MatchExpr) printGOValue(ctx ast.Ctx) (string, error) {
 func (m *MatchExpr) validatePatterns(ctx ast.Ctx) error {
 	subjectType := matchExprValueType(ctx, m.Subject)
 	for _, arm := range m.Arms {
+		if arm.Tree != nil {
+			if err := validateMatchPattern(
+				ctx,
+				*arm.Tree,
+				subjectType,
+			); err != nil {
+				return err
+			}
+		}
 		if arm.Binding != "" && !subjectType.IsZero() {
 			ctx.SetValue(
 				arm.Binding,
@@ -293,6 +329,26 @@ func (a MatchArm) printGO(
 	body, err := printMatchValueBlock(ctx, a.Body)
 	if err != nil {
 		return "", err
+	}
+
+	if a.Tree != nil {
+		final := body
+		if a.Guard != nil {
+			guard, err := a.Guard.PrintGO(ctx)
+			if err != nil {
+				return "", err
+			}
+			final = "if " + guard + " {\n" +
+				indentMatch(body) + "\n}"
+		}
+		counter := 0
+		return printMatchPattern(
+			ctx,
+			*a.Tree,
+			"__matchValue",
+			final,
+			&counter,
+		)
 	}
 
 	var condition string
@@ -393,6 +449,15 @@ func (m *MatchExpr) resultType(
 	subjectType := matchExprValueType(ctx, m.Subject)
 
 	for _, arm := range m.Arms {
+		if arm.Tree != nil {
+			if err := bindMatchPatternTypes(
+				ctx,
+				*arm.Tree,
+				subjectType,
+			); err != nil {
+				return ast.TypeRef{}, false, err
+			}
+		}
 		if arm.EnumType != "" {
 			_, variant, err := matchEnumVariant(
 				ctx,
@@ -464,6 +529,12 @@ func (m *MatchExpr) isExhaustive(
 	ctx ast.Ctx,
 ) (bool, string) {
 	for _, arm := range m.Arms {
+		if arm.Tree != nil &&
+			arm.Guard == nil &&
+			(arm.Tree.Kind == wildcardPattern ||
+				arm.Tree.Kind == bindingPattern) {
+			return true, ""
+		}
 		if arm.Guard == nil &&
 			(arm.Wildcard || arm.Binding != "") {
 			return true, ""
@@ -478,6 +549,12 @@ func (m *MatchExpr) isExhaustive(
 
 	covered := map[string]struct{}{}
 	for _, arm := range m.Arms {
+		if arm.Tree != nil &&
+			arm.Tree.Kind == enumPattern &&
+			arm.Tree.EnumType == def.Name &&
+			arm.Guard == nil {
+			covered[arm.Tree.EnumVariant] = struct{}{}
+		}
 		if arm.EnumType == def.Name && arm.Guard == nil {
 			covered[arm.EnumVariant] = struct{}{}
 		}
@@ -492,6 +569,251 @@ func (m *MatchExpr) isExhaustive(
 		return false, "missing " + strings.Join(missing, ", ")
 	}
 	return true, ""
+}
+
+func appendPatternExprs(
+	pattern *MatchPattern,
+	exprs *[]ast.Expr,
+) {
+	if pattern.Expr != nil {
+		*exprs = append(*exprs, pattern.Expr)
+	}
+	for index := range pattern.Children {
+		appendPatternExprs(&pattern.Children[index], exprs)
+	}
+}
+
+func evalMatchPattern(
+	ctx ast.Ctx,
+	pattern MatchPattern,
+	actual value.Type,
+) (bool, error) {
+	switch pattern.Kind {
+	case wildcardPattern:
+		return true, nil
+	case bindingPattern:
+		ctx.SetValue(pattern.Name, actual)
+		return true, nil
+	case literalPattern:
+		expected, err := pattern.Expr.Eval(ctx)
+		if err != nil {
+			return false, err
+		}
+		return reflect.DeepEqual(actual.Any(), expected.Any()), nil
+	case tuplePattern:
+		tuple, ok := actual.Any().(ast.TupleValue)
+		if !ok || len(tuple.Elements) != len(pattern.Children) {
+			return false, nil
+		}
+		for index, child := range pattern.Children {
+			matched, err := evalMatchPattern(
+				ctx,
+				child,
+				tuple.Elements[index],
+			)
+			if err != nil || !matched {
+				return matched, err
+			}
+		}
+		return true, nil
+	case enumPattern:
+		enumValue, ok := actual.Any().(ast.EnumValue)
+		if !ok ||
+			enumValue.TypeName != pattern.EnumType ||
+			enumValue.Variant != pattern.EnumVariant ||
+			len(enumValue.Payload) != len(pattern.Children) {
+			return false, nil
+		}
+		for index, child := range pattern.Children {
+			matched, err := evalMatchPattern(
+				ctx,
+				child,
+				enumValue.Payload[index],
+			)
+			if err != nil || !matched {
+				return matched, err
+			}
+		}
+		return true, nil
+	}
+	return false, fmt.Errorf("unknown match pattern")
+}
+
+func validateMatchPattern(
+	ctx ast.Ctx,
+	pattern MatchPattern,
+	expected ast.TypeRef,
+) error {
+	if expected.IsZero() {
+		return fmt.Errorf("cannot infer match pattern type")
+	}
+	switch pattern.Kind {
+	case wildcardPattern:
+		return nil
+	case bindingPattern:
+		ctx.SetValue(
+			pattern.Name,
+			value.NewTypeWithExplicit(nil, expected.String()),
+		)
+		return nil
+	case literalPattern:
+		actual := matchExprValueType(ctx, pattern.Expr)
+		if actual.IsZero() {
+			return fmt.Errorf("cannot infer literal pattern type")
+		}
+		if actual.GoString(ctx) != expected.GoString(ctx) {
+			return fmt.Errorf(
+				"match pattern type %s is incompatible with %s",
+				actual.String(),
+				expected.String(),
+			)
+		}
+		return nil
+	case tuplePattern:
+		if expected.Kind != ast.TupleTypeRef {
+			return fmt.Errorf(
+				"tuple pattern is incompatible with %s",
+				expected.String(),
+			)
+		}
+		if len(pattern.Children) != len(expected.Elems) {
+			return fmt.Errorf(
+				"tuple pattern expects %d elements, got %d",
+				len(expected.Elems),
+				len(pattern.Children),
+			)
+		}
+		for index, child := range pattern.Children {
+			if err := validateMatchPattern(
+				ctx,
+				child,
+				expected.Elems[index],
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	case enumPattern:
+		if expected.Name != pattern.EnumType {
+			return fmt.Errorf(
+				"enum pattern %s.%s is incompatible with %s",
+				pattern.EnumType,
+				pattern.EnumVariant,
+				expected.String(),
+			)
+		}
+		_, variant, err := matchEnumVariant(
+			ctx,
+			pattern.EnumType,
+			pattern.EnumVariant,
+		)
+		if err != nil {
+			return err
+		}
+		if len(pattern.Children) != len(variant.Fields) {
+			return fmt.Errorf(
+				"enum pattern %s.%s expects %d fields, got %d",
+				pattern.EnumType,
+				pattern.EnumVariant,
+				len(variant.Fields),
+				len(pattern.Children),
+			)
+		}
+		for index, child := range pattern.Children {
+			if err := validateMatchPattern(
+				ctx,
+				child,
+				variant.Fields[index],
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown match pattern")
+}
+
+func bindMatchPatternTypes(
+	ctx ast.Ctx,
+	pattern MatchPattern,
+	expected ast.TypeRef,
+) error {
+	return validateMatchPattern(ctx, pattern, expected)
+}
+
+func printMatchPattern(
+	ctx ast.Ctx,
+	pattern MatchPattern,
+	valueExpr string,
+	final string,
+	counter *int,
+) (string, error) {
+	switch pattern.Kind {
+	case wildcardPattern:
+		return final, nil
+	case bindingPattern:
+		return pattern.Name + " := " + valueExpr +
+			"\n" + final, nil
+	case literalPattern:
+		printed, err := pattern.Expr.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		return "if " + valueExpr + " == " + printed +
+			" {\n" + indentMatch(final) + "\n}", nil
+	case tuplePattern:
+		code := final
+		var err error
+		for index := len(pattern.Children) - 1; index >= 0; index-- {
+			code, err = printMatchPattern(
+				ctx,
+				pattern.Children[index],
+				fmt.Sprintf("%s.V%d", valueExpr, index),
+				code,
+				counter,
+			)
+			if err != nil {
+				return "", err
+			}
+		}
+		return code, nil
+	case enumPattern:
+		variantID := *counter
+		(*counter)++
+		variantVar := fmt.Sprintf(
+			"__matchVariant%d",
+			variantID,
+		)
+		code := final
+		var err error
+		for index := len(pattern.Children) - 1; index >= 0; index-- {
+			field := fmt.Sprintf("V%d", index)
+			if pattern.FieldNames != nil {
+				field = pattern.FieldNames[index]
+			}
+			code, err = printMatchPattern(
+				ctx,
+				pattern.Children[index],
+				variantVar+"."+field,
+				code,
+				counter,
+			)
+			if err != nil {
+				return "", err
+			}
+		}
+		if !strings.Contains(code, variantVar) {
+			variantVar = "_"
+		}
+		return "if " + variantVar +
+			", ok := " + valueExpr + ".(" +
+			ast.EnumVariantGoName(
+				pattern.EnumType,
+				pattern.EnumVariant,
+			) + "); ok {\n" +
+			indentMatch(code) + "\n}", nil
+	}
+	return "", fmt.Errorf("unknown match pattern")
 }
 
 func matchEnumVariant(

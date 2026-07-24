@@ -112,7 +112,11 @@ let result = match msg {
 
     Message.Write(text) => text,
 }
-
+	let pair = (10, "hello")
+	fn (p: Point) sum() int {
+		return p.0 + p.1
+	}
+	type Point = (int, int)
 	`)
 
 	p.SetValue("id", value.NewType(12211))

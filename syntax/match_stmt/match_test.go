@@ -10,6 +10,7 @@ import (
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
+	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
@@ -29,6 +30,7 @@ type testParser interface {
 func newMatchParser(input string) testParser {
 	p := parser.NewParser(input)
 	literal_parser.RegisterParser(p)
+	binary_parser.RegisterParser(p)
 	comparison_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
@@ -101,6 +103,71 @@ func TestEnumReceiverMethod(t *testing.T) {
 	typeCheckGeneratedGo(t, source)
 }
 
+func TestStructEnumVariantAndNestedTuplePattern(t *testing.T) {
+	p := newMatchParser(`
+		enum Message {
+			Text(string),
+		}
+
+		enum Event {
+			Move { point: (int, int) },
+			Nested(Message),
+		}
+
+		let event = Event.Move { point: (3, 4) }
+		let result = match event {
+			Event.Move { point: (x, y) } if x > 0 => y,
+			Event.Move { point: (_, _) } => 0,
+			Event.Nested(Message.Text(_)) => 0,
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expr := range exprs {
+		if _, err := expr.Eval(p.Ctx()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, ok := p.Ctx().GetValue("result")
+	if !ok || result.Any() != int64(4) {
+		t.Fatalf("result = %#v, want 4", result.Any())
+	}
+
+	parts := make([]string, 0, len(exprs))
+	for _, expr := range exprs {
+		printed, err := expr.PrintGO(p.Ctx())
+		if err != nil {
+			t.Fatal(err)
+		}
+		parts = append(parts, printed)
+	}
+	for _, expected := range []string{
+		"Event(EventMove{point:",
+		"x := __matchVariant0.point.V0",
+		"y := __matchVariant0.point.V1",
+		".(MessageText)",
+	} {
+		joined := strings.Join(parts, "\n")
+		if !strings.Contains(joined, expected) {
+			t.Fatalf(
+				"generated nested pattern misses %q:\n%s",
+				expected,
+				joined,
+			)
+		}
+	}
+
+	source := "package generated\n\n" +
+		parts[0] + "\n\n" +
+		parts[1] + "\n\nfunc run() {\n" +
+		parts[2] + "\n" +
+		parts[3] + "\n_ = result\n}"
+	typeCheckGeneratedGo(t, source)
+}
+
 func TestEnumMatchPayloadGuardAndExhaustiveness(t *testing.T) {
 	p := newMatchParser(`
 		enum Message {
@@ -154,7 +221,7 @@ func TestEnumMatchPayloadGuardAndExhaustiveness(t *testing.T) {
 	for _, expected := range []string{
 		"result := func() string",
 		"__matchValue.(MessageMove)",
-		"x := __matchVariant.V0",
+		"x := __matchVariant0.V0",
 		"if (x > 10)",
 	} {
 		if !strings.Contains(generated, expected) {
@@ -356,7 +423,10 @@ func TestLetMatchBindingGuard(t *testing.T) {
 	}
 	if !strings.Contains(
 		generated,
-		"if n := __matchValue; (n > 10)",
+		"n := __matchValue",
+	) || !strings.Contains(
+		generated,
+		"if (n > 10)",
 	) || !strings.Contains(generated, "return n") {
 		t.Fatalf("unexpected guarded match:\n%s", generated)
 	}

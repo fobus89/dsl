@@ -2,6 +2,7 @@ package member_parser
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/fobus89/dsl/ast"
@@ -63,6 +64,15 @@ func (m *MemberExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	}
 
 	switch v := obj.Any().(type) {
+	case ast.TupleValue:
+		index, ok := m.tupleIndex()
+		if !ok || index >= len(v.Elements) {
+			return value.NewTypeNil(), fmt.Errorf(
+				"tuple index %s is out of range",
+				m.property,
+			)
+		}
+		return v.Elements[index], nil
 
 	case map[string]any:
 		val, ok := v[string(m.property)]
@@ -122,17 +132,13 @@ func (m MemberExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
 		return ast.TypeRef{Name: enumType.Name}
 	}
 
-	var objectType ast.TypeRef
-
-	switch object := m.object.(type) {
-	case Ident:
-		if val, ok := ctx.GetValue(string(object)); ok {
-			objectType = ast.ParseTypeRef(val.TypeName())
+	objectType := memberExprValueType(ctx, m.object)
+	if objectType.Kind == ast.TupleTypeRef {
+		index, ok := m.tupleIndex()
+		if !ok || index >= len(objectType.Elems) {
+			return ast.TypeRef{}
 		}
-	case interface {
-		ValueType(ast.Ctx) ast.TypeRef
-	}:
-		objectType = object.ValueType(ctx)
+		return objectType.Elems[index]
 	}
 
 	def, ok := ctx.GetType(objectType.Name)
@@ -165,7 +171,16 @@ func (m MemberExpr) PrintGO(ctx ast.Ctx) (string, error) {
 		return "", err
 	}
 
-	return object + "." + string(m.property), nil
+	property := string(m.property)
+	if _, ok := m.tupleIndex(); ok {
+		property = "V" + property
+	}
+	return object + "." + property, nil
+}
+
+func (m MemberExpr) tupleIndex() (int, bool) {
+	index, err := strconv.Atoi(string(m.property))
+	return index, err == nil && index >= 0
 }
 
 func (m MemberExpr) CallValueType(ctx ast.Ctx) ast.TypeRef {
@@ -182,6 +197,13 @@ func (m MemberExpr) PrintGOEnumCall(
 	enumType, variant, ok := m.enumVariant(ctx)
 	if !ok {
 		return m.printGOEnumMethodCall(ctx, args)
+	}
+	if variant.FieldNames != nil {
+		return "", true, fmt.Errorf(
+			"struct enum variant %s.%s must use { fields }",
+			enumType.Name,
+			variant.Name,
+		)
 	}
 	if len(args) != len(variant.Fields) {
 		return "", true, fmt.Errorf(
@@ -275,6 +297,11 @@ func (m MemberExpr) enumVariant(
 	}
 	variant, exists := enumVariant(def, string(m.property))
 	return def, variant, exists
+}
+
+func (m MemberExpr) IsStructLiteralTarget(ctx ast.Ctx) bool {
+	_, variant, ok := m.enumVariant(ctx)
+	return ok && variant.FieldNames != nil
 }
 
 func enumVariant(

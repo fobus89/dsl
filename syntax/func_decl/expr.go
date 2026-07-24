@@ -235,6 +235,7 @@ func (d *FuncDecl) coerceReturn(
 
 	if d.ReturnType.Kind == ast.ArrayTypeRef ||
 		d.ReturnType.Kind == ast.SliceTypeRef ||
+		d.ReturnType.Kind == ast.TupleTypeRef ||
 		d.ReturnType.IsPtr {
 		if result.TypeName() == d.ReturnType.String() ||
 			(result.IsNil() &&
@@ -363,7 +364,8 @@ func returnValueMatches(
 	result value.Type,
 ) bool {
 	if target.Kind == ast.ArrayTypeRef ||
-		target.Kind == ast.SliceTypeRef {
+		target.Kind == ast.SliceTypeRef ||
+		target.Kind == ast.TupleTypeRef {
 		return result.TypeName() == target.String() ||
 			(result.IsNil() && target.Kind == ast.SliceTypeRef)
 	}

@@ -51,6 +51,7 @@ func parseFuncDeclWithMode(
 	var returnType *ast.TypeRef
 	if p.Match(token.STAR) ||
 		p.Match(token.LBRACKET) ||
+		p.Match(token.LPARENT) ||
 		p.Match(token.TYPE) ||
 		p.Match(token.IDENT) ||
 		p.CurrentToken().Type.IsType() {

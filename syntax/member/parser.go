@@ -21,10 +21,11 @@ func parseMember(p parser.Parser, left ast.Expr, bp parser.BindingPower) (ast.Ex
 		p.Next() // skip '.'
 
 		tok := p.CurrentToken()
-		{
-			if tok.Type != token.IDENT {
-				return nil, errors.New("expected identifier after '.'")
-			}
+		if tok.Type != token.IDENT &&
+			tok.Type != token.INT_LITERAL {
+			return nil, errors.New(
+				"expected identifier or tuple index after '.'",
+			)
 		}
 
 		property := literal_parser.NewIdentExpr(tok.Literal)

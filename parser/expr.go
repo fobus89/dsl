@@ -83,6 +83,12 @@ func (p *parser) ParseExpr(bp BindingPower) (ast.Expr, error) {
 }
 
 func (p *parser) isStructLiteralTarget(expr ast.Expr) bool {
+	if target, ok := expr.(interface {
+		IsStructLiteralTarget(ast.Ctx) bool
+	}); ok && target.IsStructLiteralTarget(p.ctx) {
+		return true
+	}
+
 	target, ok := expr.(interface {
 		StructTypeName() string
 	})

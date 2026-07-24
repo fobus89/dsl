@@ -267,6 +267,13 @@ func isComparableType(ctx ast.Ctx, ref ast.TypeRef) bool {
 		return false
 	case ast.ArrayTypeRef:
 		return ref.Elem != nil && isComparableType(ctx, *ref.Elem)
+	case ast.TupleTypeRef:
+		for _, elem := range ref.Elems {
+			if !isComparableType(ctx, elem) {
+				return false
+			}
+		}
+		return true
 	}
 
 	if def, declared := ctx.GetType(ref.Name); declared {

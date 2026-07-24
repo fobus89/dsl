@@ -7,7 +7,9 @@ import (
 	"github.com/fobus89/dsl/value"
 )
 
-type BreakExpr struct{}
+type BreakExpr struct {
+	Value ast.Expr
+}
 type ContinueExpr struct{}
 
 type YieldExpr struct {
@@ -18,17 +20,43 @@ func (y *YieldExpr) YieldedExpr() ast.Expr {
 	return y.Value
 }
 
-func (BreakExpr) Eval(ast.Ctx) (value.Type, error) {
-	return value.NewTypeNil(), ast.FlowSignal{Kind: ast.BreakFlow}
+func (b *BreakExpr) BreakValue() (ast.Expr, bool) {
+	return b.Value, b.Value != nil
 }
 
-func (BreakExpr) Type(ast.Ctx) string {
+func (b *BreakExpr) Eval(ctx ast.Ctx) (value.Type, error) {
+	signal := ast.FlowSignal{Kind: ast.BreakFlow}
+	if b.Value != nil {
+		result, err := b.Value.Eval(ctx)
+		if err != nil {
+			return value.NewTypeNil(), err
+		}
+		signal.Value = result
+		signal.HasValue = true
+	}
+	return value.NewTypeNil(), signal
+}
+
+func (*BreakExpr) Type(ast.Ctx) string {
 	return "break"
 }
 
-func (BreakExpr) PrintGO(ctx ast.Ctx) (string, error) {
+func (b *BreakExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	if loop, ok := ctx.(interface{ InLoop() bool }); !ok || !loop.InLoop() {
 		return "", fmt.Errorf("break can only be used inside for")
+	}
+	if b.Value != nil {
+		scalar, ok := ctx.(interface{ BreakReturnsValue() bool })
+		if !ok || !scalar.BreakReturnsValue() {
+			return "", fmt.Errorf(
+				"break with a value requires a scalar for expression",
+			)
+		}
+		printed, err := b.Value.PrintGO(ctx)
+		if err != nil {
+			return "", err
+		}
+		return "return " + printed, nil
 	}
 	return "break", nil
 }

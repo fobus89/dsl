@@ -68,15 +68,10 @@ func main() {
 					}
 			}
 		}
+		let x= if true {mixed}
 
 		let result = for item in mixed {
-			if item == 2 {
-				continue
-			}
-			if item == 4 {
-				break
-			}
-			yield item
+			break if true {item}
 		}
 
 	`)

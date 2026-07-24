@@ -385,8 +385,9 @@ const (
 )
 
 type FlowSignal struct {
-	Kind  FlowKind
-	Value value.Type
+	Kind     FlowKind
+	Value    value.Type
+	HasValue bool
 }
 
 func (s FlowSignal) Error() string {

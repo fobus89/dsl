@@ -20,6 +20,20 @@ type ForExpr struct {
 	Body      []ast.Expr
 }
 
+type forResultMode uint8
+
+const (
+	noForResult forResultMode = iota
+	yieldForResult
+	breakForResult
+)
+
+type forResultInfo struct {
+	mode  forResultMode
+	ref   ast.TypeRef
+	known bool
+}
+
 func NewForExpr(
 	ident *Ident,
 	iterable ast.Expr,
@@ -36,17 +50,25 @@ func NewForExpr(
 
 func (f *ForExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 	var collected []any
+	info, err := f.resultInfo(ctx)
+	if err != nil {
+		return value.NewTypeNil(), err
+	}
 
 	if f.Iterable != nil {
 		iterable, err := f.Iterable.Eval(ctx)
 		if err != nil {
 			return value.NewTypeNil(), err
 		}
-		collected, err = f.evalIterable(ctx, iterable.Any())
+		var scalar *value.Type
+		collected, scalar, err = f.evalIterable(ctx, iterable.Any())
 		if err != nil {
 			return value.NewTypeNil(), err
 		}
-		return f.collectedValue(ctx, collected), nil
+		if scalar != nil {
+			return scalarResult(info, *scalar), nil
+		}
+		return emptyForResult(ctx, info, collected), nil
 	}
 
 	for {
@@ -71,7 +93,10 @@ func (f *ForExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		}
 		switch signal.Kind {
 		case ast.BreakFlow:
-			return f.collectedValue(ctx, collected), nil
+			if signal.HasValue {
+				return scalarResult(info, signal.Value), nil
+			}
+			return emptyForResult(ctx, info, collected), nil
 		case ast.ContinueFlow:
 			continue
 		case ast.YieldFlow:
@@ -79,23 +104,84 @@ func (f *ForExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		}
 	}
 
-	return f.collectedValue(ctx, collected), nil
+	return emptyForResult(ctx, info, collected), nil
 }
 
-func (f *ForExpr) collectedValue(
+func emptyForResult(
 	ctx ast.Ctx,
+	info forResultInfo,
 	collected []any,
 ) value.Type {
-	if ref := f.ValueType(ctx); !ref.IsZero() {
-		return value.NewTypeWithExplicit(collected, ref.String())
+	if info.mode == breakForResult {
+		if info.known {
+			return value.NewTypeWithExplicit(
+				zeroForType(ctx, info.ref),
+				info.ref.String(),
+			)
+		}
+		return value.NewTypeNil()
+	}
+	if info.mode == yieldForResult && info.known {
+		return value.NewTypeWithExplicit(collected, info.ref.String())
 	}
 	return value.NewType(collected)
+}
+
+func zeroForType(ctx ast.Ctx, ref ast.TypeRef) any {
+	if ref.IsPtr || ref.Kind == ast.SliceTypeRef {
+		return nil
+	}
+	if ref.Kind == ast.ArrayTypeRef {
+		result := make([]any, ref.Len)
+		if ref.Elem != nil {
+			for i := range result {
+				result[i] = zeroForType(ctx, *ref.Elem)
+			}
+		}
+		return result
+	}
+	if def, declared := ctx.GetType(ref.Name); declared {
+		if def.Kind == ast.AliasType {
+			return zeroForType(ctx, def.Underlying)
+		}
+		fields := make(map[string]any, len(def.Fields))
+		for name, field := range def.Fields {
+			fields[name] = zeroForType(ctx, field.Type)
+		}
+		return fields
+	}
+	switch strings.ToLower(ref.Name) {
+	case "string":
+		return ""
+	case "bool":
+		return false
+	case "float32", "float64":
+		return float64(0)
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"rune", "byte":
+		return int64(0)
+	}
+	return nil
+}
+
+func scalarResult(
+	info forResultInfo,
+	result value.Type,
+) value.Type {
+	if info.known {
+		return value.NewTypeWithExplicit(
+			result.Any(),
+			info.ref.String(),
+		)
+	}
+	return result
 }
 
 func (f *ForExpr) evalIterable(
 	ctx ast.Ctx,
 	iterable any,
-) ([]any, error) {
+) ([]any, *value.Type, error) {
 	var collected []any
 
 	if text, ok := iterable.(string); ok {
@@ -103,18 +189,21 @@ func (f *ForExpr) evalIterable(
 			ctx.SetValue(string(*f.Ident), value.NewType(item))
 			stop, err := collectFlow(ctx, f.Body, &collected)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			if stop {
+			if stop.scalar != nil {
+				return collected, stop.scalar, nil
+			}
+			if stop.stop {
 				break
 			}
 		}
-		return collected, nil
+		return collected, nil, nil
 	}
 
 	reflected := reflect.ValueOf(iterable)
 	if !reflected.IsValid() {
-		return collected, nil
+		return collected, nil, nil
 	}
 
 	switch reflected.Kind() {
@@ -126,9 +215,12 @@ func (f *ForExpr) evalIterable(
 			)
 			stop, err := collectFlow(ctx, f.Body, &collected)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			if stop {
+			if stop.scalar != nil {
+				return collected, stop.scalar, nil
+			}
+			if stop.stop {
 				break
 			}
 		}
@@ -141,43 +233,55 @@ func (f *ForExpr) evalIterable(
 			)
 			stop, err := collectFlow(ctx, f.Body, &collected)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			if stop {
+			if stop.scalar != nil {
+				return collected, stop.scalar, nil
+			}
+			if stop.stop {
 				break
 			}
 		}
 	default:
-		return nil, fmt.Errorf("cannot iterate over %T", iterable)
+		return nil, nil, fmt.Errorf("cannot iterate over %T", iterable)
 	}
 
-	return collected, nil
+	return collected, nil, nil
+}
+
+type flowStop struct {
+	stop   bool
+	scalar *value.Type
 }
 
 func collectFlow(
 	ctx ast.Ctx,
 	body []ast.Expr,
 	collected *[]any,
-) (bool, error) {
+) (flowStop, error) {
 	err := evalBody(ctx, body)
 	if err == nil {
-		return false, nil
+		return flowStop{}, nil
 	}
 
 	signal, ok := errors.AsType[ast.FlowSignal](err)
 	if !ok {
-		return false, err
+		return flowStop{}, err
 	}
 	switch signal.Kind {
 	case ast.BreakFlow:
-		return true, nil
+		if signal.HasValue {
+			scalar := signal.Value
+			return flowStop{stop: true, scalar: &scalar}, nil
+		}
+		return flowStop{stop: true}, nil
 	case ast.ContinueFlow:
-		return false, nil
+		return flowStop{}, nil
 	case ast.YieldFlow:
 		*collected = append(*collected, signal.Value.Any())
-		return false, nil
+		return flowStop{}, nil
 	default:
-		return false, err
+		return flowStop{}, err
 	}
 }
 
@@ -195,11 +299,11 @@ func (*ForExpr) Type(ast.Ctx) string {
 }
 
 func (f *ForExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
-	ref, known, err := f.yieldCollectionType(ctx)
-	if err != nil || !known {
+	info, err := f.resultInfo(ctx)
+	if err != nil || !info.known {
 		return ast.TypeRef{}
 	}
-	return ref
+	return info.ref
 }
 
 func (f *ForExpr) ChildExprs() []ast.Expr {
@@ -214,20 +318,49 @@ func (f *ForExpr) PrintGOAssign(
 	ctx ast.Ctx,
 	name string,
 ) (string, error) {
-	yieldCtx := flowContext{Ctx: ctx, target: name}
-	loop, err := f.printGO(yieldCtx)
+	info, err := f.resultInfo(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	collectionType := "[]any"
-	if ref, known, err := f.yieldCollectionType(ctx); err != nil {
-		return "", err
-	} else if known {
-		collectionType = ref.GoString(ctx)
+	printCtx := flowContext{Ctx: ctx}
+	resultType := "[]any"
+	switch info.mode {
+	case yieldForResult:
+		printCtx.yieldTarget = name
+		if info.known {
+			resultType = info.ref.GoString(ctx)
+		}
+	case breakForResult:
+		printCtx.breakReturns = true
+		scalarType := "any"
+		if info.known {
+			scalarType = info.ref.GoString(ctx)
+		}
+		loop, err := f.printGO(printCtx)
+		if err != nil {
+			return "", err
+		}
+		indentedLoop := "\t" +
+			strings.ReplaceAll(loop, "\n", "\n\t")
+		return name + " := func() " + scalarType + " {\n" +
+			indentedLoop + "\n" +
+			"\tvar zero " + scalarType + "\n" +
+			"\treturn zero\n" +
+			"}()", nil
 	}
 
-	return name + " := make(" + collectionType + ", 0)\n" + loop, nil
+	loop, err := f.printGO(printCtx)
+	if err != nil {
+		return "", err
+	}
+	indentedLoop := "\t" +
+		strings.ReplaceAll(loop, "\n", "\n\t")
+	return name + " := func() " + resultType + " {\n" +
+		"\t" + name + " := make(" + resultType + ", 0)\n" +
+		indentedLoop + "\n" +
+		"\treturn " + name + "\n" +
+		"}()", nil
 }
 
 func (f *ForExpr) printGO(ctx ast.Ctx) (string, error) {
@@ -282,20 +415,29 @@ func (f *ForExpr) loopTypeContext(ctx ast.Ctx) ast.Ctx {
 		value.NewTypeWithExplicit(nil, element.String()),
 	)
 
-	target := ""
+	yieldTarget := ""
 	if yield, ok := ctx.(interface{ YieldTarget() string }); ok {
-		target = yield.YieldTarget()
+		yieldTarget = yield.YieldTarget()
 	}
-	return flowContext{Ctx: local, target: target}
+	breakReturns := false
+	if breaker, ok := ctx.(interface{ BreakReturnsValue() bool }); ok {
+		breakReturns = breaker.BreakReturnsValue()
+	}
+	return flowContext{
+		Ctx:          local,
+		yieldTarget:  yieldTarget,
+		breakReturns: breakReturns,
+	}
 }
 
-func (f *ForExpr) yieldCollectionType(
+func (f *ForExpr) resultInfo(
 	ctx ast.Ctx,
-) (ast.TypeRef, bool, error) {
+) (forResultInfo, error) {
 	yieldCtx := f.loopTypeContext(ctx)
 	var element ast.TypeRef
 	known := true
 	found := false
+	mode := noForResult
 
 	var visit func([]ast.Expr) error
 	visit = func(exprs []ast.Expr) error {
@@ -306,6 +448,12 @@ func (f *ForExpr) yieldCollectionType(
 			if yielded, ok := expr.(interface {
 				YieldedExpr() ast.Expr
 			}); ok {
+				if mode == breakForResult {
+					return fmt.Errorf(
+						"for cannot mix yield with break value",
+					)
+				}
+				mode = yieldForResult
 				ref, ok := inferExprType(yieldCtx, yielded.YieldedExpr())
 				if !ok {
 					known = false
@@ -327,6 +475,40 @@ func (f *ForExpr) yieldCollectionType(
 				}
 				continue
 			}
+			if breaker, ok := expr.(interface {
+				BreakValue() (ast.Expr, bool)
+			}); ok {
+				valueExpr, hasValue := breaker.BreakValue()
+				if !hasValue {
+					continue
+				}
+				if mode == yieldForResult {
+					return fmt.Errorf(
+						"for cannot mix yield with break value",
+					)
+				}
+				mode = breakForResult
+				ref, ok := inferExprType(yieldCtx, valueExpr)
+				if !ok {
+					known = false
+					found = true
+					continue
+				}
+				if !found {
+					element = ref
+					found = true
+					continue
+				}
+				if known &&
+					ref.GoString(yieldCtx) != element.GoString(yieldCtx) {
+					return fmt.Errorf(
+						"for breaks with incompatible types %s and %s",
+						element.String(),
+						ref.String(),
+					)
+				}
+				continue
+			}
 			if container, ok := expr.(interface {
 				ChildExprs() []ast.Expr
 			}); ok {
@@ -339,16 +521,27 @@ func (f *ForExpr) yieldCollectionType(
 	}
 
 	if err := visit(f.Body); err != nil {
-		return ast.TypeRef{}, false, err
+		return forResultInfo{}, err
 	}
 	if !found || !known {
-		return ast.TypeRef{}, false, nil
+		return forResultInfo{mode: mode}, nil
 	}
 
-	return ast.TypeRef{
-		Kind: ast.SliceTypeRef,
-		Elem: &element,
-	}, true, nil
+	if mode == yieldForResult {
+		return forResultInfo{
+			mode:  mode,
+			known: true,
+			ref: ast.TypeRef{
+				Kind: ast.SliceTypeRef,
+				Elem: &element,
+			},
+		}, nil
+	}
+	return forResultInfo{
+		mode:  mode,
+		ref:   element,
+		known: true,
+	}, nil
 }
 
 func iterableElementType(
@@ -412,11 +605,16 @@ func inferExprType(
 
 type flowContext struct {
 	ast.Ctx
-	target string
+	yieldTarget  string
+	breakReturns bool
 }
 
 func (y flowContext) YieldTarget() string {
-	return y.target
+	return y.yieldTarget
+}
+
+func (y flowContext) BreakReturnsValue() bool {
+	return y.breakReturns
 }
 
 func (flowContext) InLoop() bool {

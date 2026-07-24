@@ -8,6 +8,7 @@ import (
 	all_parser "github.com/fobus89/dsl/syntax/all"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	"github.com/fobus89/dsl/value"
 )
@@ -24,6 +25,7 @@ func newAllTestParser(input string) testParser {
 	binary_parser.RegisterParser(p)
 	all_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 
 	return p
 }
@@ -44,7 +46,7 @@ func evalProgram(t *testing.T, p testParser) {
 }
 
 func TestAllReturnsMatchedMap(t *testing.T) {
-	p := newAllTestParser(`r = sample all target`)
+	p := newAllTestParser(`let r = sample all target`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id":   1,
 		"name": "user",
@@ -69,7 +71,7 @@ func TestAllReturnsMatchedMap(t *testing.T) {
 }
 
 func TestAllReturnsNilWhenLeftHasExtraKeys(t *testing.T) {
-	p := newAllTestParser(`r = sample all users`)
+	p := newAllTestParser(`let r = sample all users`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id": int64(1),
 		"a":  int64(2),
@@ -100,7 +102,7 @@ func TestAllReturnsNilWhenLeftHasExtraKeys(t *testing.T) {
 }
 
 func TestAllPrimitiveReturnsMatchedValue(t *testing.T) {
-	p := newAllTestParser(`r = needle all nums`)
+	p := newAllTestParser(`let r = needle all nums`)
 	p.Ctx().SetValue("needle", value.NewType(2))
 	p.Ctx().SetValue("nums", value.NewType([]int{1, 2, 3}))
 

@@ -11,6 +11,7 @@ import (
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	forstmt_parser "github.com/fobus89/dsl/syntax/for_stmt"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	"github.com/fobus89/dsl/value"
 )
@@ -28,12 +29,13 @@ func newForParser(input string) testParser {
 	assignment_parser.RegisterParser(p)
 	call_parser.RegisterParser(p)
 	forstmt_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	return p
 }
 
 func TestForInEval(t *testing.T) {
 	p := newForParser(`
-		sum = 0
+		let sum = 0
 		for item in items {
 			sum = sum + item
 		}

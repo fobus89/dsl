@@ -11,6 +11,7 @@ import (
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	member_parser "github.com/fobus89/dsl/syntax/member"
@@ -36,6 +37,7 @@ func newSelectTestParser(input string) testParser {
 	select_parser.RegisterParser(p)
 	unary_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 
 	return p
 }
@@ -181,7 +183,7 @@ func TestSelectStarSliceWhereLimit(t *testing.T) {
 
 func TestSelectDeepMemberField(t *testing.T) {
 	p := newSelectTestParser(`
-		user1 = select
+		let user1 = select
 			id,name,username,
 			address.street.geo.lat.lng
 		from json(get("https://jsonplaceholder.typicode.com/users/"))

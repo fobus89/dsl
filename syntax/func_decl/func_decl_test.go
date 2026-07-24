@@ -11,6 +11,7 @@ import (
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	map_parser "github.com/fobus89/dsl/syntax/map"
 	member_parser "github.com/fobus89/dsl/syntax/member"
@@ -33,6 +34,7 @@ func newFuncDeclTestParser(input string) testParser {
 	collection_parser.RegisterParser(p)
 	typedecl_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	return p
 }
 
@@ -60,9 +62,9 @@ func TestMetaTypeParameterAndReturn(t *testing.T) {
 		comptime fn identity(t: type) type {
 			return t
 		}
-		userType = identity(User)
-		intType = identity(int)
-		sliceType = identity([][]int)
+		let userType = identity(User)
+		let intType = identity(int)
+		let sliceType = identity([][]int)
 	`)
 
 	exprs, err := p.Parse()
@@ -117,7 +119,7 @@ func TestMetaTypeParameterAndReturn(t *testing.T) {
 func TestMetaTypeParameterRejectsRuntimeValue(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		comptime fn inspect(t: type) type { return t }
-		result = inspect(42)
+		let result = inspect(42)
 	`)
 
 	exprs, err := p.Parse()
@@ -148,8 +150,8 @@ func TestComptimeMetaReceiverMethod(t *testing.T) {
 		comptime fn (st: structtype) pointer() bool {
 			return st.isptr
 		}
-		valueResult = User.pointer()
-		pointerResult = (*User).pointer()
+		let valueResult = User.pointer()
+		let pointerResult = (*User).pointer()
 	`)
 
 	exprs, err := p.Parse()
@@ -187,17 +189,17 @@ func TestSpecializedMetaTypeParameters(t *testing.T) {
 		comptime fn requireFunc(t: functype) type { return t }
 		comptime fn isPointer(t: type) bool { return t.isptr }
 
-		structResult = requireStruct(User)
-		sliceResult = requireSlice([]int)
-		arrayResult = requireArray([2]int)
-		pointerStructResult = requireStruct(*User)
-		pointerNumberResult = requireNumber(*int)
-		aliasResult = requireAlias(ID)
-		primitiveResult = requirePrimitive(string)
-		numberResult = requireNumber(ID)
-		funcResult = requireFunc(sample)
-		structIsPointer = isPointer(*User)
-		structIsValue = isPointer(User)
+		let structResult = requireStruct(User)
+		let sliceResult = requireSlice([]int)
+		let arrayResult = requireArray([2]int)
+		let pointerStructResult = requireStruct(*User)
+		let pointerNumberResult = requireNumber(*int)
+		let aliasResult = requireAlias(ID)
+		let primitiveResult = requirePrimitive(string)
+		let numberResult = requireNumber(ID)
+		let funcResult = requireFunc(sample)
+		let structIsPointer = isPointer(*User)
+		let structIsValue = isPointer(User)
 	`)
 
 	exprs, err := p.Parse()
@@ -261,7 +263,7 @@ func TestSpecializedMetaTypeParameters(t *testing.T) {
 func TestSpecializedMetaTypeRejectsDifferentKind(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		comptime fn requireStruct(t: structtype) type { return t }
-		result = requireStruct(int)
+		let result = requireStruct(int)
 	`)
 
 	exprs, err := p.Parse()
@@ -488,7 +490,7 @@ func TestFunctionIsAvailableBeforeItsDeclaration(t *testing.T) {
 func TestCallMethodThroughReceiver(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		type User struct { name: string }
-		user = User {name: "Bob"}
+		let user = User {name: "Bob"}
 		user.name()
 		fn (u: User) name() String { return u.name }
 	`)
@@ -514,7 +516,7 @@ func TestCallMethodThroughReceiver(t *testing.T) {
 func TestMethodRejectsReceiverWithoutDeclaredType(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		type User struct { name: string }
-		plain = {name: "Bob"}
+		let plain = {name: "Bob"}
 		plain.name()
 		fn (u: User) name() String { return u.name }
 	`)
@@ -540,7 +542,7 @@ func TestMethodRejectsDifferentDeclaredReceiverType(t *testing.T) {
 	p := newFuncDeclTestParser(`
 		type User struct { name: string }
 		type Admin struct { name: string }
-		admin = Admin {name: "Root"}
+		let admin = Admin {name: "Root"}
 		admin.name()
 		fn (u: User) name() String { return u.name }
 	`)

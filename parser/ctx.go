@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/fobus89/dsl/ast"
@@ -27,24 +28,28 @@ func (m MapType[T, E]) Set(key T, val E) {
 type functype = ast.Func
 
 type scope struct {
-	parent    *scope
-	values    MapType[string, value.Type]
-	functions MapType[string, functype]
-	types     MapType[string, ast.TypeDef]
-	methods   MapType[string, MapType[string, functype]]
-	generics  MapType[string, []ast.TypeParam]
-	instances MapType[string, [][]ast.TypeRef]
+	parent     *scope
+	values     MapType[string, value.Type]
+	valueHints MapType[string, bool]
+	constants  MapType[string, bool]
+	functions  MapType[string, functype]
+	types      MapType[string, ast.TypeDef]
+	methods    MapType[string, MapType[string, functype]]
+	generics   MapType[string, []ast.TypeParam]
+	instances  MapType[string, [][]ast.TypeRef]
 }
 
 func NewCtxWithParent(parent *scope) *scope {
 	return &scope{
-		parent:    parent,
-		values:    MapType[string, value.Type]{},
-		functions: MapType[string, functype]{},
-		types:     MapType[string, ast.TypeDef]{},
-		methods:   MapType[string, MapType[string, functype]]{},
-		generics:  MapType[string, []ast.TypeParam]{},
-		instances: MapType[string, [][]ast.TypeRef]{},
+		parent:     parent,
+		values:     MapType[string, value.Type]{},
+		valueHints: MapType[string, bool]{},
+		constants:  MapType[string, bool]{},
+		functions:  MapType[string, functype]{},
+		types:      MapType[string, ast.TypeDef]{},
+		methods:    MapType[string, MapType[string, functype]]{},
+		generics:   MapType[string, []ast.TypeParam]{},
+		instances:  MapType[string, [][]ast.TypeRef]{},
 	}
 }
 
@@ -108,6 +113,46 @@ func NewCtx() *scope {
 
 func (s *scope) SetValue(key string, val value.Type) {
 	s.values.Set(key, val)
+	delete(s.valueHints, key)
+}
+
+func (s *scope) SetValueTypeHint(key string, val value.Type) {
+	s.values.Set(key, val)
+	s.valueHints.Set(key, true)
+}
+
+func (s *scope) DeclareValue(
+	key string,
+	val value.Type,
+	constant bool,
+) {
+	s.values.Set(key, val)
+	delete(s.valueHints, key)
+	s.constants.Set(key, constant)
+}
+
+func (s *scope) AssignValue(
+	key string,
+	val value.Type,
+) error {
+	if constant, declared := s.constants.Get(key); declared {
+		if constant {
+			return fmt.Errorf("cannot assign to const %s", key)
+		}
+		s.values.Set(key, val)
+		return nil
+	}
+	if hinted, exists := s.valueHints.Get(key); exists && hinted {
+		return fmt.Errorf("cannot assign to undeclared value %s", key)
+	}
+	if _, exists := s.values.Get(key); exists {
+		s.values.Set(key, val)
+		return nil
+	}
+	if s.parent != nil {
+		return s.parent.AssignValue(key, val)
+	}
+	return fmt.Errorf("cannot assign to undeclared value %s", key)
 }
 
 func (s *scope) GetValue(key string) (value.Type, bool) {

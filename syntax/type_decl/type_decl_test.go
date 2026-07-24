@@ -10,6 +10,7 @@ import (
 	call_parser "github.com/fobus89/dsl/syntax/call"
 	collection_parser "github.com/fobus89/dsl/syntax/collection"
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	map_parser "github.com/fobus89/dsl/syntax/map"
 	member_parser "github.com/fobus89/dsl/syntax/member"
@@ -31,6 +32,7 @@ func newTypeDeclTestParser(input string) testParser {
 	member_parser.RegisterParser(p)
 	typedecl_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	return p
 }
 
@@ -139,7 +141,7 @@ func TestStructFieldDefaultValue(t *testing.T) {
 		type User struct {
 			name: *string = "some str"
 		}
-		u = User {}
+		let u = User {}
 	`)
 
 	exprs, err := p.Parse()
@@ -176,7 +178,7 @@ func TestStructFieldDefaultValue(t *testing.T) {
 func TestAliasConstructorPreservesDeclaredType(t *testing.T) {
 	p := newTypeDeclTestParser(`
 		type UserID int
-		id = UserID(42)
+		let id = UserID(42)
 	`)
 
 	exprs, err := p.Parse()
@@ -202,7 +204,7 @@ func TestStructLiteralPreservesDeclaredType(t *testing.T) {
 			name: string,
 			age: int
 		}
-		user = User {name: "Bob", age: 40}
+		let user = User {name: "Bob", age: 40}
 	`)
 
 	exprs, err := p.Parse()
@@ -267,7 +269,7 @@ func TestStructFieldKeepsDeclaredTypeForMethodCall(t *testing.T) {
 			u: User
 		}
 
-		user = User {name: "Bob", id: 10,u:User{id:22} }
+		let user = User {name: "Bob", id: 10,u:User{id:22} }
 
 		fn (u: User) name() String {
 			return u.name

@@ -7,6 +7,7 @@ import (
 
 	"github.com/fobus89/dsl/ast"
 	"github.com/fobus89/dsl/parser"
+	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
 	comparison_parser "github.com/fobus89/dsl/syntax/comparison"
 	flow_parser "github.com/fobus89/dsl/syntax/flow"
@@ -61,6 +62,34 @@ func TestLetIfExpression(t *testing.T) {
 	if !strings.Contains(generated, "result := func() string") ||
 		!strings.Contains(generated, `return "yes"`) {
 		t.Fatalf("unexpected generated if expression:\n%s", generated)
+	}
+}
+
+func TestConstDeclCannotBeAssigned(t *testing.T) {
+	p := newLetParser(`
+		const answer = 42
+		answer = 43
+	`)
+	assignment_parser.RegisterParser(p)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := exprs[0].Eval(p.Ctx()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := exprs[1].Eval(p.Ctx()); err == nil ||
+		!strings.Contains(err.Error(), "cannot assign to const answer") {
+		t.Fatalf("expected const assignment error, got %v", err)
+	}
+
+	printed, err := exprs[0].PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if printed != "const answer = 42" {
+		t.Fatalf("unexpected const declaration: %s", printed)
 	}
 }
 

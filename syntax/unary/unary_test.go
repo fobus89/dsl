@@ -8,6 +8,7 @@ import (
 	any_parser "github.com/fobus89/dsl/syntax/any"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	unary_parser "github.com/fobus89/dsl/syntax/unary"
@@ -37,6 +38,7 @@ func newUnaryProgramTestParser(input string) testParser {
 	binary_parser.RegisterParser(p)
 	any_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	unary_parser.RegisterParser(p)
 	logical_parser.RegisterParser(p)
 
@@ -136,7 +138,7 @@ func TestUnaryPrecedence(t *testing.T) {
 func TestUnaryMinusAfterBinaryStatement(t *testing.T) {
 	p := newUnaryProgramTestParser(`
 		user1 any users
-		r = -1
+		let r = -1
 	`)
 
 	p.Ctx().SetValue("user1", value.NewType(map[string]any{"id": 1}))

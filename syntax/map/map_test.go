@@ -7,6 +7,7 @@ import (
 	"github.com/fobus89/dsl/parser"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	map_parser "github.com/fobus89/dsl/syntax/map"
 	member_parser "github.com/fobus89/dsl/syntax/member"
@@ -24,6 +25,7 @@ func newMapTestParser(input string) testParser {
 	literal_parser.RegisterParser(p)
 	binary_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 
@@ -32,7 +34,7 @@ func newMapTestParser(input string) testParser {
 
 func TestMapLiteralAssignment(t *testing.T) {
 	p := newMapTestParser(`
-		somevar = {
+		let somevar = {
 			name: "",
 			age: r.age,
 			sum: 1 + 2,

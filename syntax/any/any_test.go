@@ -8,6 +8,7 @@ import (
 	any_parser "github.com/fobus89/dsl/syntax/any"
 	assignment_parser "github.com/fobus89/dsl/syntax/assignment"
 	binary_parser "github.com/fobus89/dsl/syntax/binary"
+	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	"github.com/fobus89/dsl/value"
 )
@@ -24,6 +25,7 @@ func newAnyTestParser(input string) testParser {
 	binary_parser.RegisterParser(p)
 	any_parser.RegisterParser(p)
 	assignment_parser.RegisterParser(p)
+	let_parser.RegisterParser(p)
 
 	return p
 }
@@ -44,7 +46,7 @@ func evalProgram(t *testing.T, p testParser) {
 }
 
 func TestAnyReturnsMatchedMap(t *testing.T) {
-	p := newAnyTestParser(`r = sample any target`)
+	p := newAnyTestParser(`let r = sample any target`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id":   int64(1),
 		"name": "user",
@@ -69,7 +71,7 @@ func TestAnyReturnsMatchedMap(t *testing.T) {
 }
 
 func TestAnyFindsMapInsideSliceWithJSONNumber(t *testing.T) {
-	p := newAnyTestParser(`r = sample any users`)
+	p := newAnyTestParser(`let r = sample any users`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id": int64(1),
 	}))
@@ -98,7 +100,7 @@ func TestAnyFindsMapInsideSliceWithJSONNumber(t *testing.T) {
 }
 
 func TestAnyFindsMapInsideSliceByOneKeyValue(t *testing.T) {
-	p := newAnyTestParser(`r = sample any users`)
+	p := newAnyTestParser(`let r = sample any users`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id": int64(1),
 		"a":  int64(2),
@@ -130,7 +132,7 @@ func TestAnyFindsMapInsideSliceByOneKeyValue(t *testing.T) {
 }
 
 func TestAnyMapRightReturnsMap(t *testing.T) {
-	p := newAnyTestParser(`r = sample any user`)
+	p := newAnyTestParser(`let r = sample any user`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id": int64(1),
 		"a":  int64(2),
@@ -154,7 +156,7 @@ func TestAnyMapRightReturnsMap(t *testing.T) {
 }
 
 func TestAnyPrimitiveReturnsMatchedValue(t *testing.T) {
-	p := newAnyTestParser(`r = needle any nums`)
+	p := newAnyTestParser(`let r = needle any nums`)
 	p.Ctx().SetValue("needle", value.NewType(2))
 	p.Ctx().SetValue("nums", value.NewType([]int{1, 2, 3}))
 
@@ -171,7 +173,7 @@ func TestAnyPrimitiveReturnsMatchedValue(t *testing.T) {
 }
 
 func TestAnyReturnsNilWhenNotFound(t *testing.T) {
-	p := newAnyTestParser(`r = sample any target`)
+	p := newAnyTestParser(`let r = sample any target`)
 	p.Ctx().SetValue("sample", value.NewType(map[string]any{
 		"id": 2,
 	}))

@@ -11,21 +11,41 @@ import (
 
 type Ident = literal_parser.Ident
 
-type LetExpr struct {
-	Name  Ident
-	Names []Ident
-	Value ast.Expr
+type ValueDecl struct {
+	Name     Ident
+	Names    []Ident
+	Value    ast.Expr
+	Constant bool
 }
 
-func NewLetExpr(name Ident, value ast.Expr) *LetExpr {
-	return &LetExpr{Name: name, Value: value}
+// LetExpr is kept as an alias for callers using the old syntax API.
+type LetExpr = ValueDecl
+
+func NewValueDecl(
+	name Ident,
+	value ast.Expr,
+	constant bool,
+) *ValueDecl {
+	return &ValueDecl{
+		Name:     name,
+		Value:    value,
+		Constant: constant,
+	}
 }
 
-func NewTupleLetExpr(names []Ident, value ast.Expr) *LetExpr {
-	return &LetExpr{Names: names, Value: value}
+func NewLetExpr(name Ident, value ast.Expr) *ValueDecl {
+	return NewValueDecl(name, value, false)
 }
 
-func (l *LetExpr) Eval(ctx ast.Ctx) (value.Type, error) {
+func NewConstExpr(name Ident, value ast.Expr) *ValueDecl {
+	return NewValueDecl(name, value, true)
+}
+
+func NewTupleLetExpr(names []Ident, value ast.Expr) *ValueDecl {
+	return &ValueDecl{Names: names, Value: value}
+}
+
+func (l *ValueDecl) Eval(ctx ast.Ctx) (value.Type, error) {
 	evaluated, err := l.Value.Eval(ctx)
 	if err != nil {
 		return value.NewTypeNil(), err
@@ -47,20 +67,27 @@ func (l *LetExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		}
 		for index, name := range l.Names {
 			if name != "_" {
-				ctx.SetValue(string(name), tuple.Elements[index])
+				ctx.DeclareValue(
+					string(name),
+					tuple.Elements[index],
+					false,
+				)
 			}
 		}
 		return value.NewTypeNil(), nil
 	}
-	ctx.SetValue(string(l.Name), evaluated)
+	ctx.DeclareValue(string(l.Name), evaluated, l.Constant)
 	return value.NewTypeNil(), nil
 }
 
-func (*LetExpr) Type(ast.Ctx) string {
+func (l *ValueDecl) Type(ast.Ctx) string {
+	if l.Constant {
+		return "const"
+	}
 	return "let"
 }
 
-func (l *LetExpr) PrintGO(ctx ast.Ctx) (string, error) {
+func (l *ValueDecl) PrintGO(ctx ast.Ctx) (string, error) {
 	if len(l.Names) != 0 {
 		return l.printGOTupleDestructure(ctx)
 	}
@@ -71,32 +98,44 @@ func (l *LetExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	if printable, ok := l.Value.(interface {
 		PrintGOAssign(ast.Ctx, string) (string, error)
 	}); ok {
+		if l.Constant {
+			return "", fmt.Errorf(
+				"const %s requires a constant initializer",
+				l.Name,
+			)
+		}
 		printed, err = printable.PrintGOAssign(ctx, string(l.Name))
 	} else {
 		printed, err = l.Value.PrintGO(ctx)
 		if err == nil {
-			printed = string(l.Name) + " := " + printed
+			operator := " := "
+			if l.Constant {
+				operator = " = "
+				printed = "const " + string(l.Name) +
+					operator + printed
+			} else {
+				printed = string(l.Name) + operator + printed
+			}
 		}
 	}
 	if err != nil {
 		return "", err
 	}
 
+	declared := value.NewTypeNil()
 	if typed, ok := l.Value.(interface {
 		ValueType(ast.Ctx) ast.TypeRef
 	}); ok {
 		ref := typed.ValueType(ctx)
 		if !ref.IsZero() {
-			ctx.SetValue(
-				string(l.Name),
-				value.NewTypeWithExplicit(nil, ref.String()),
-			)
+			declared = value.NewTypeWithExplicit(nil, ref.String())
 		}
 	}
+	ctx.DeclareValue(string(l.Name), declared, l.Constant)
 	return printed, nil
 }
 
-func (l *LetExpr) printGOTupleDestructure(
+func (l *ValueDecl) printGOTupleDestructure(
 	ctx ast.Ctx,
 ) (string, error) {
 	typed, ok := l.Value.(interface {
@@ -140,12 +179,13 @@ func (l *LetExpr) printGOTupleDestructure(
 			fmt.Sprintf("__tuple.V%d", index),
 		)
 		if name != "_" {
-			ctx.SetValue(
+			ctx.DeclareValue(
 				string(name),
 				value.NewTypeWithExplicit(
 					nil,
 					ref.Elems[index].String(),
 				),
+				false,
 			)
 		}
 	}

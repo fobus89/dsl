@@ -11,17 +11,24 @@ import (
 )
 
 func RegisterParser(p parser.Parser) {
-	p.StmtRegister(token.LET, parseLet)
+	p.StmtRegister(token.LET, parseValueDecl)
+	p.StmtRegister(token.CONST, parseValueDecl)
 }
 
-func parseLet(p parser.Parser) (ast.Expr, error) {
-	p.Next() // skip let
+func parseValueDecl(p parser.Parser) (ast.Expr, error) {
+	kind := p.Next()
+	constant := kind.Type == token.CONST
 
 	var (
 		names        []Ident
 		tuplePattern bool
 	)
 	if p.MatchNext(token.LPARENT) {
+		if constant {
+			return nil, fmt.Errorf(
+				"const tuple destructuring is not supported",
+			)
+		}
 		tuplePattern = true
 		for !p.MatchNext(token.RPARENT) {
 			if !p.Match(token.IDENT) {
@@ -51,7 +58,8 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 		}
 	} else if !p.Match(token.IDENT) {
 		return nil, fmt.Errorf(
-			"expected identifier after let, got %s",
+			"expected identifier after %s, got %s",
+			kind.Literal,
 			p.CurrentToken().Type,
 		)
 	} else {
@@ -63,7 +71,8 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 
 	if !p.MatchNext(token.EQ) {
 		return nil, fmt.Errorf(
-			"expected = after let binding, got %s",
+			"expected = after %s binding, got %s",
+			kind.Literal,
 			p.CurrentToken().Type,
 		)
 	}
@@ -82,7 +91,8 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf(
-			"let %s value: %w",
+			"%s %s value: %w",
+			kind.Literal,
 			name,
 			err,
 		)
@@ -94,13 +104,13 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 		}); ok {
 			ref := typed.ValueType(p.Ctx())
 			if !ref.IsZero() {
-				p.Ctx().SetValue(
+				p.Ctx().SetValueTypeHint(
 					string(name),
 					value.NewTypeWithExplicit(nil, ref.String()),
 				)
 			}
 		}
-		return NewLetExpr(name, expr), nil
+		return NewValueDecl(name, expr, constant), nil
 	}
 	return NewTupleLetExpr(names, expr), nil
 }

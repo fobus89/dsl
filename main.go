@@ -22,7 +22,6 @@ import (
 	funcdecl_parser "github.com/fobus89/dsl/syntax/func_decl"
 	generic_parser "github.com/fobus89/dsl/syntax/generic"
 	ifstmt_parser "github.com/fobus89/dsl/syntax/if_stmt"
-	let_parser "github.com/fobus89/dsl/syntax/let"
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	map_parser "github.com/fobus89/dsl/syntax/map"
@@ -31,6 +30,7 @@ import (
 	select_parser "github.com/fobus89/dsl/syntax/select"
 	typedecl_parser "github.com/fobus89/dsl/syntax/type_decl"
 	unary_parser "github.com/fobus89/dsl/syntax/unary"
+	valuedecl_parser "github.com/fobus89/dsl/syntax/value_decl"
 	"github.com/fobus89/dsl/value"
 )
 
@@ -250,7 +250,7 @@ let result = match msg {
 	generic_parser.RegisterParser(p)
 	ifstmt_parser.RegisterParser(p)
 	matchstmt_parser.RegisterParser(p)
-	let_parser.RegisterParser(p)
+	valuedecl_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)
 	select_parser.RegisterParser(p)

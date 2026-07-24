@@ -548,7 +548,10 @@ func substituteType(
 
 type Ctx interface {
 	SetValue(key string, val value.Type)
+	SetValueTypeHint(key string, val value.Type)
 	GetValue(key string) (value.Type, bool)
+	DeclareValue(key string, val value.Type, constant bool)
+	AssignValue(key string, val value.Type) error
 	SetFunc(key string, val Func)
 	GetFunc(key string) (Func, bool)
 	SetType(key string, def TypeDef)

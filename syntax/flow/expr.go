@@ -14,6 +14,10 @@ type YieldExpr struct {
 	Value ast.Expr
 }
 
+func (y *YieldExpr) YieldedExpr() ast.Expr {
+	return y.Value
+}
+
 func (BreakExpr) Eval(ast.Ctx) (value.Type, error) {
 	return value.NewTypeNil(), ast.FlowSignal{Kind: ast.BreakFlow}
 }

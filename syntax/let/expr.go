@@ -31,15 +31,34 @@ func (*LetExpr) Type(ast.Ctx) string {
 }
 
 func (l *LetExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	var (
+		printed string
+		err     error
+	)
 	if printable, ok := l.Value.(interface {
 		PrintGOAssign(ast.Ctx, string) (string, error)
 	}); ok {
-		return printable.PrintGOAssign(ctx, string(l.Name))
+		printed, err = printable.PrintGOAssign(ctx, string(l.Name))
+	} else {
+		printed, err = l.Value.PrintGO(ctx)
+		if err == nil {
+			printed = string(l.Name) + " := " + printed
+		}
 	}
-
-	printed, err := l.Value.PrintGO(ctx)
 	if err != nil {
 		return "", err
 	}
-	return string(l.Name) + " := " + printed, nil
+
+	if typed, ok := l.Value.(interface {
+		ValueType(ast.Ctx) ast.TypeRef
+	}); ok {
+		ref := typed.ValueType(ctx)
+		if !ref.IsZero() {
+			ctx.SetValue(
+				string(l.Name),
+				value.NewTypeWithExplicit(nil, ref.String()),
+			)
+		}
+	}
+	return printed, nil
 }

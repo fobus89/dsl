@@ -99,7 +99,7 @@ func TestLetForYieldBreakContinue(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, expected := range []string{
-		"result := make([]any, 0)",
+		"result := make([]int, 0)",
 		"continue",
 		"break",
 		"result = append(result, item)",
@@ -107,6 +107,58 @@ func TestLetForYieldBreakContinue(t *testing.T) {
 		if !strings.Contains(generated, expected) {
 			t.Fatalf("generated code misses %q:\n%s", expected, generated)
 		}
+	}
+}
+
+func TestForYieldPreservesNestedElementType(t *testing.T) {
+	p := newLetParser(`
+		let result = for item in mixed {
+			yield item
+		}
+	`)
+	p.Ctx().SetValue(
+		"mixed",
+		value.NewTypeWithExplicit(
+			[2][][]any{},
+			"[2][][]User",
+		),
+	)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := exprs[0].PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(
+		generated,
+		"result := make([][][]User, 0)",
+	) {
+		t.Fatalf("unexpected generated accumulator:\n%s", generated)
+	}
+}
+
+func TestForYieldRejectsIncompatibleTypes(t *testing.T) {
+	p := newLetParser(`
+		let result = for item in items {
+			if true {
+				yield item
+			}
+			yield "wrong"
+		}
+	`)
+	p.Ctx().SetValue("items", value.NewType([]int{1, 2}))
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = exprs[0].PrintGO(p.Ctx())
+	if err == nil ||
+		!strings.Contains(err.Error(), "incompatible types int and string") {
+		t.Fatalf("expected incompatible yield error, got %v", err)
 	}
 }
 

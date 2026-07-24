@@ -176,6 +176,19 @@ func (Ident) Type(ctx ast.Ctx) string {
 	return "ident"
 }
 
+func (i Ident) ValueType(ctx ast.Ctx) ast.TypeRef {
+	if val, ok := ctx.GetValue(string(i)); ok {
+		return ast.ParseTypeRef(val.TypeName())
+	}
+	if _, declared := ctx.GetType(string(i)); declared {
+		return ast.TypeRef{Name: ast.MetaTypeName}
+	}
+	if _, declared := ctx.GetFunc(string(i)); declared {
+		return ast.TypeRef{Name: ast.FuncTypeName}
+	}
+	return ast.TypeRef{}
+}
+
 func (i Ident) PrintGO(ast.Ctx) (string, error) {
 	return string(i), nil
 }

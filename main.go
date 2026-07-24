@@ -25,6 +25,7 @@ import (
 	literal_parser "github.com/fobus89/dsl/syntax/literal"
 	logical_parser "github.com/fobus89/dsl/syntax/logical"
 	map_parser "github.com/fobus89/dsl/syntax/map"
+	matchstmt_parser "github.com/fobus89/dsl/syntax/match_stmt"
 	member_parser "github.com/fobus89/dsl/syntax/member"
 	select_parser "github.com/fobus89/dsl/syntax/select"
 	typedecl_parser "github.com/fobus89/dsl/syntax/type_decl"
@@ -73,6 +74,44 @@ func main() {
 		let result = for item in mixed {
 			break if true {item}
 		}
+
+		let result = match 2 {
+			1 => "one",
+			2 => "two",
+			_ => "other",
+		}
+
+	enum State {
+		Idle,
+		Running,
+		Stopped,
+	}
+
+let state = State.Idle
+
+let result = match state {
+    State.Idle => 0,
+    State.Running => 1,
+    State.Stopped => 2,
+}
+
+enum Message {
+    Quit,
+    Move(int, int),
+    Write(string),
+}
+
+let msg = Message.Move(12, 4)
+
+let result = match msg {
+    Message.Quit => "quit",
+
+    Message.Move(x, _) if x > 10 => "large move",
+
+    Message.Move(_, _) => "move",
+
+    Message.Write(text) => text,
+}
 
 	`)
 
@@ -202,6 +241,7 @@ func main() {
 	collection_parser.RegisterParser(p)
 	funcdecl_parser.RegisterParser(p)
 	ifstmt_parser.RegisterParser(p)
+	matchstmt_parser.RegisterParser(p)
 	let_parser.RegisterParser(p)
 	map_parser.RegisterParser(p)
 	member_parser.RegisterParser(p)

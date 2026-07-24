@@ -114,6 +114,8 @@ func (t TokenType) String() string {
 		return ":"
 	case COLON_COLON:
 		return "::"
+	case FAT_ARROW:
+		return "=>"
 	case SEMICOLON:
 		return ";"
 	case COMMA:

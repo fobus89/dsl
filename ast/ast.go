@@ -14,6 +14,7 @@ type TypeKind string
 const (
 	AliasType  TypeKind = "alias"
 	StructType TypeKind = "struct"
+	EnumType   TypeKind = "enum"
 )
 
 type TypeRefKind uint8
@@ -194,6 +195,9 @@ func classifyMetaType(ref TypeRef, def *TypeDef) MetaTypeKind {
 		if def.Kind == StructType {
 			return StructMetaType
 		}
+		if def.Kind == EnumType {
+			return EnumMetaType
+		}
 		return AliasMetaType
 	}
 
@@ -347,11 +351,27 @@ type FieldDef struct {
 	Default Expr
 }
 
+type EnumVariantDef struct {
+	Name   string
+	Fields []TypeRef
+}
+
 type TypeDef struct {
 	Name       string
 	Kind       TypeKind
 	Underlying TypeRef
 	Fields     map[string]FieldDef
+	Variants   []EnumVariantDef
+}
+
+type EnumValue struct {
+	TypeName string
+	Variant  string
+	Payload  []value.Type
+}
+
+func EnumVariantGoName(typeName, variant string) string {
+	return typeName + variant
 }
 
 type Ctx interface {

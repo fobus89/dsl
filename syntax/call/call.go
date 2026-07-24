@@ -16,6 +16,10 @@ type methodCallee interface {
 	MethodName() string
 }
 
+type enumCallPrinter interface {
+	PrintGOEnumCall(ast.Ctx, []ast.Expr) (string, bool, error)
+}
+
 type CallExpr struct {
 	Callee ast.Expr
 	Args   []ast.Expr
@@ -49,7 +53,15 @@ func (c *CallExpr) Eval(ctx ast.Ctx) (value.Type, error) {
 		receiverType := receiver.TypeName()
 		var ok bool
 		if meta, isMeta := receiver.Any().(ast.MetaTypeValue); isMeta {
+			if meta.Def != nil &&
+				meta.Def.Kind == ast.EnumType {
+				fn, ok = ctx.GetMethod(meta.Def.Name, name)
+				receiverType = meta.Def.Name
+			}
 			for _, candidate := range meta.MethodReceiverTypes() {
+				if ok {
+					break
+				}
 				if fn, ok = ctx.GetMethod(candidate, name); ok {
 					receiverType = candidate
 					break
@@ -92,6 +104,18 @@ func (c *CallExpr) Parts() (ast.Expr, []ast.Expr) {
 }
 
 func (c *CallExpr) PrintGO(ctx ast.Ctx) (string, error) {
+	if printer, ok := c.Callee.(enumCallPrinter); ok {
+		printed, handled, err := printer.PrintGOEnumCall(
+			ctx,
+			c.Args,
+		)
+		if err != nil {
+			return "", err
+		}
+		if handled {
+			return printed, nil
+		}
+	}
 	callee, err := c.Callee.PrintGO(ctx)
 	if err != nil {
 		return "", err
@@ -107,4 +131,13 @@ func (c *CallExpr) PrintGO(ctx ast.Ctx) (string, error) {
 	}
 
 	return callee + "(" + strings.Join(args, ", ") + ")", nil
+}
+
+func (c *CallExpr) ValueType(ctx ast.Ctx) ast.TypeRef {
+	if typed, ok := c.Callee.(interface {
+		CallValueType(ast.Ctx) ast.TypeRef
+	}); ok {
+		return typed.CallValueType(ctx)
+	}
+	return ast.TypeRef{}
 }

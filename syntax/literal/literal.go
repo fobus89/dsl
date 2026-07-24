@@ -24,6 +24,10 @@ func (f Float64) Type(ctx ast.Ctx) string {
 	return "float64"
 }
 
+func (Float64) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: "float64"}
+}
+
 func (f Float64) PrintGO(ast.Ctx) (string, error) {
 	return strconv.FormatFloat(float64(f), 'f', -1, 64), nil
 }
@@ -40,6 +44,10 @@ func (i Int) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (f Int) Type(ctx ast.Ctx) string {
 	return "int"
+}
+
+func (Int) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: "int"}
 }
 
 func (i Int) PrintGO(ast.Ctx) (string, error) {
@@ -60,6 +68,10 @@ func (s String) Type(ctx ast.Ctx) string {
 	return "string"
 }
 
+func (String) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: "string"}
+}
+
 func (s String) PrintGO(ast.Ctx) (string, error) {
 	return strconv.Quote(string(s)), nil
 }
@@ -78,6 +90,10 @@ func (s Bool) Type(ctx ast.Ctx) string {
 	return "bool"
 }
 
+func (Bool) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: "bool"}
+}
+
 func (b Bool) PrintGO(ast.Ctx) (string, error) {
 	return strconv.FormatBool(bool(b)), nil
 }
@@ -94,6 +110,10 @@ func (Nil) Eval(ctx ast.Ctx) (value.Type, error) {
 
 func (Nil) Type(ctx ast.Ctx) string {
 	return "nil"
+}
+
+func (Nil) ValueType(ast.Ctx) ast.TypeRef {
+	return ast.TypeRef{Name: "nil"}
 }
 
 func (Nil) PrintGO(ast.Ctx) (string, error) {

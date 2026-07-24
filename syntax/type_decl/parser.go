@@ -11,7 +11,80 @@ import (
 
 func RegisterParser(p parser.Parser) {
 	p.StmtRegister(token.TYPE, parseTypeDecl)
+	p.StmtRegister(token.ENUM, parseEnumDecl)
 	p.LedRegister(token.LBRACE, parser.Call, parseStructLiteral)
+}
+
+func parseEnumDecl(p parser.Parser) (ast.Expr, error) {
+	p.Next() // skip enum
+
+	name, err := parseIdent(p, "enum name")
+	if err != nil {
+		return nil, err
+	}
+	if !p.MatchNext(token.LBRACE) {
+		return nil, expected(p, token.LBRACE)
+	}
+
+	def := ast.TypeDef{
+		Name:       string(name),
+		Kind:       ast.EnumType,
+		Underlying: ast.TypeRef{Name: token.Enum.String()},
+		Fields:     map[string]ast.FieldDef{},
+	}
+	seen := map[string]struct{}{}
+
+	for !p.MatchNext(token.RBRACE) {
+		variant, err := parseIdent(p, "enum variant")
+		if err != nil {
+			return nil, err
+		}
+		variantName := string(variant)
+		if _, exists := seen[variantName]; exists {
+			return nil, fmt.Errorf(
+				"enum variant %s declared more than once",
+				variantName,
+			)
+		}
+		seen[variantName] = struct{}{}
+
+		var fields []ast.TypeRef
+		if p.MatchNext(token.LPARENT) {
+			for !p.MatchNext(token.RPARENT) {
+				fieldType, err := parseTypeName(p)
+				if err != nil {
+					return nil, err
+				}
+				fields = append(fields, fieldType)
+				if p.MatchNext(token.RPARENT) {
+					break
+				}
+				if !p.MatchNext(token.COMMA) {
+					return nil, expected(p, token.COMMA)
+				}
+			}
+		}
+		def.Variants = append(def.Variants, ast.EnumVariantDef{
+			Name:   variantName,
+			Fields: fields,
+		})
+
+		if p.MatchNext(token.RBRACE) {
+			break
+		}
+		if !p.MatchNext(token.COMMA) &&
+			!p.MatchNext(token.SEMICOLON) {
+			return nil, fmt.Errorf(
+				"expected , or } after enum variant, got %s",
+				p.CurrentToken().Type,
+			)
+		}
+	}
+
+	if len(def.Variants) == 0 {
+		return nil, fmt.Errorf("enum %s requires at least one variant", name)
+	}
+	return NewTypeDecl(p.Ctx(), def), nil
 }
 
 func parseTypeDecl(p parser.Parser) (ast.Expr, error) {

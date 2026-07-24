@@ -111,23 +111,27 @@ func Keyword(key string) (TokenType, bool) {
 }
 
 func LookupReservedToken(key string) (TokenType, bool) {
-	token, ok := stringToTokenMap.Get(key)
-	{
-		if !ok {
-			return ILLEGAL, false
+	if keyword, ok := keywordMap.Get(key); ok {
+		return keyword, true
+	}
+
+	for _, bounds := range [][2]TokenType{
+		{builtin_start, builtin_end},
+		{compiletime_start, compiletime_end},
+		{type_start, type_end},
+	} {
+		for kind := bounds[0] + 1; kind < bounds[1]; kind++ {
+			if MarkersContains(kind) || kind.String() != key {
+				continue
+			}
+			// Collections are expressed as []T and [N]T. The old
+			// array/slice pseudo-types remain identifiers.
+			if kind == Array || kind == Slice {
+				return ILLEGAL, false
+			}
+			return kind, true
 		}
 	}
-
-	// Collections are expressed as []T and [N]T. The old array/slice
-	// pseudo-types have no grammar and must remain available as identifiers.
-	if token == Array || token == Slice {
-		return ILLEGAL, false
-	}
-
-	if token.IsKeyword() || token.IsBuiltin() || token.IsCompiletime() || token.IsType() {
-		return token, true
-	}
-
 	return ILLEGAL, false
 }
 

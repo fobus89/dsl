@@ -20,6 +20,11 @@ func NewTypeDecl(ctx ast.Ctx, def ast.TypeDef) *TypeDecl {
 	decl := &TypeDecl{Def: def}
 	ctx.SetType(def.Name, def)
 
+	if def.Kind == ast.EnumType {
+		registerEnumVariants(ctx, def)
+		return decl
+	}
+
 	ctx.SetFunc(def.Name, func(args ...value.Type) (value.Type, error) {
 		if len(args) != 1 {
 			return value.NewTypeNil(), fmt.Errorf(
@@ -55,6 +60,88 @@ func NewTypeDecl(ctx ast.Ctx, def ast.TypeDef) *TypeDecl {
 	return decl
 }
 
+func registerEnumVariants(ctx ast.Ctx, def ast.TypeDef) {
+	for _, variant := range def.Variants {
+		variant := variant
+		ctx.SetMethod(
+			def.Name,
+			variant.Name,
+			func(args ...value.Type) (value.Type, error) {
+				payload := args
+				if len(payload) > 0 {
+					payload = payload[1:] // enum type receiver
+				}
+				if len(payload) != len(variant.Fields) {
+					return value.NewTypeNil(), fmt.Errorf(
+						"enum variant %s.%s expects %d values, got %d",
+						def.Name,
+						variant.Name,
+						len(variant.Fields),
+						len(payload),
+					)
+				}
+				for index, fieldType := range variant.Fields {
+					if !enumValueMatchesType(
+						ctx,
+						payload[index],
+						fieldType,
+					) {
+						return value.NewTypeNil(), fmt.Errorf(
+							"enum variant %s.%s field %d expects %s, got %s",
+							def.Name,
+							variant.Name,
+							index,
+							fieldType.String(),
+							payload[index].TypeName(),
+						)
+					}
+				}
+				return value.NewTypeWithExplicit(
+					ast.EnumValue{
+						TypeName: def.Name,
+						Variant:  variant.Name,
+						Payload:  payload,
+					},
+					def.Name,
+				), nil
+			},
+		)
+	}
+}
+
+func enumValueMatchesType(
+	ctx ast.Ctx,
+	got value.Type,
+	expected ast.TypeRef,
+) bool {
+	gotRef := ast.ParseTypeRef(got.TypeName())
+	if gotRef.GoString(ctx) == expected.GoString(ctx) {
+		return true
+	}
+	if enumNumericType(gotRef) && enumNumericType(expected) {
+		return true
+	}
+	if def, declared := ctx.GetType(expected.Name); declared &&
+		def.Kind == ast.AliasType {
+		return gotRef.GoString(ctx) ==
+			def.Underlying.GoString(ctx)
+	}
+	return false
+}
+
+func enumNumericType(ref ast.TypeRef) bool {
+	if ref.IsPtr || ref.Kind != ast.NamedTypeRef {
+		return false
+	}
+	switch strings.ToLower(ref.Name) {
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"float32", "float64", "rune", "byte":
+		return true
+	}
+	return false
+}
+
 func (*TypeDecl) Eval(ast.Ctx) (value.Type, error) {
 	return value.NewTypeNil(), nil
 }
@@ -76,6 +163,9 @@ func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 			d.Def.Name,
 			d.Def.Underlying.GoString(ctx),
 		), nil
+	}
+	if d.Def.Kind == ast.EnumType {
+		return printGOEnum(ctx, d.Def)
 	}
 
 	names := make([]string, 0, len(d.Def.Fields))
@@ -104,6 +194,46 @@ func (d *TypeDecl) PrintGO(ctx ast.Ctx) (string, error) {
 		d.Def.Name,
 		strings.Join(fields, "\n\t"),
 	), nil
+}
+
+func printGOEnum(ctx ast.Ctx, def ast.TypeDef) (string, error) {
+	var declarations []string
+	declarations = append(
+		declarations,
+		"type "+def.Name+" interface {\n\tis"+def.Name+"()\n}",
+	)
+
+	for _, variant := range def.Variants {
+		goName := ast.EnumVariantGoName(def.Name, variant.Name)
+		fields := make([]string, 0, len(variant.Fields))
+		for index, fieldType := range variant.Fields {
+			if fieldType.IsMeta() {
+				return "", fmt.Errorf(
+					"enum variant %s.%s contains compile-time type values",
+					def.Name,
+					variant.Name,
+				)
+			}
+			fields = append(
+				fields,
+				fmt.Sprintf(
+					"V%d %s",
+					index,
+					fieldType.GoString(ctx),
+				),
+			)
+		}
+		body := ""
+		if len(fields) != 0 {
+			body = "\n\t" + strings.Join(fields, "\n\t") + "\n"
+		}
+		declarations = append(
+			declarations,
+			"type "+goName+" struct {"+body+"}",
+			"func ("+goName+") is"+def.Name+"() {}",
+		)
+	}
+	return strings.Join(declarations, "\n\n"), nil
 }
 
 type FieldValue struct {

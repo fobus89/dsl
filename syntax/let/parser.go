@@ -37,13 +37,19 @@ func parseLet(p parser.Parser) (ast.Expr, error) {
 		err  error
 	)
 	if handler, ok := p.StmtOrNone(p.CurrentToken().Type); ok &&
-		(p.Match(token.IF) || p.Match(token.FOR)) {
+		(p.Match(token.IF) ||
+			p.Match(token.FOR) ||
+			p.Match(token.MATCH)) {
 		expr, err = handler(p)
 	} else {
 		expr, err = p.ParseExpr(parser.Lowest)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"let %s value: %w",
+			name,
+			err,
+		)
 	}
 
 	return NewLetExpr(name, expr), nil

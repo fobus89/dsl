@@ -154,6 +154,10 @@ func (i *IfExpr) PrintGOAssign(
 	return name + " := " + printed, nil
 }
 
+func (i *IfExpr) PrintGOValue(ctx ast.Ctx) (string, error) {
+	return i.printGOValue(ctx)
+}
+
 func (i *IfExpr) printGOValue(ctx ast.Ctx) (string, error) {
 	resultType := "any"
 	resultKnown := false

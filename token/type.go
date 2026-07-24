@@ -75,6 +75,7 @@ const (
 	QUESTION    // ?
 	COLON       // :
 	COLON_COLON // ::
+	FAT_ARROW   // =>
 	SEMICOLON   // ;
 	COMMA       // ,
 	DOT         // .

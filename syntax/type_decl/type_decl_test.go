@@ -61,6 +61,47 @@ func TestRecursiveCollectionFieldType(t *testing.T) {
 	}
 }
 
+func TestRustStyleEnumDeclaration(t *testing.T) {
+	p := newTypeDeclTestParser(`
+		enum Message {
+			Quit,
+			Move(int, int),
+			Write(string),
+		}
+	`)
+
+	exprs, err := p.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decl := exprs[0].(*typedecl_parser.TypeDecl)
+	if decl.Def.Kind != ast.EnumType ||
+		len(decl.Def.Variants) != 3 {
+		t.Fatalf("unexpected enum definition: %#v", decl.Def)
+	}
+
+	generated, err := decl.PrintGO(p.Ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		"type Message interface",
+		"type MessageQuit struct",
+		"type MessageMove struct",
+		"V0 int",
+		"V1 int",
+		"func (MessageWrite) isMessage()",
+	} {
+		if !strings.Contains(generated, expected) {
+			t.Fatalf(
+				"generated enum misses %q:\n%s",
+				expected,
+				generated,
+			)
+		}
+	}
+}
+
 func TestPointerStructFieldPrintGO(t *testing.T) {
 	p := newTypeDeclTestParser(`
 		type User struct {
